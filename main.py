@@ -1,146 +1,50 @@
-import itertools
-from random import choice, sample
+import argparse
 
-from genetic import crossover, mutate
-from utils import (get_inverse, read_puzzle_info, read_puzzles, read_solution,
-                   remove_identity)
-
-
-def get_identities(puzzle_info, depth):
-    move_ids = list(puzzle_info.keys())
-    for id in move_ids:
-        puzzle_info[f"-{id}"] = get_inverse(puzzle_info[id])
-    move_ids = list(puzzle_info.keys())
-    puzzle_size = len(list(puzzle_info.values())[0])
-    permutation_map = {tuple(range(puzzle_size)): [()]}
-    for n in range(1, depth + 1):
-        if n == 3:
-            identities = [
-                ".".join(p)
-                for p in permutation_map[tuple(range(puzzle_size))]
-                if len(p)
-            ]
-        for permutation in itertools.permutations(move_ids, r=n):
-            has_identity = False
-            if n > 2:
-                permutation_str = ".".join(permutation)
-                for p in identities:
-                    if p in permutation_str:
-                        has_identity = True
-                        break
-            if has_identity:
-                continue
-            result = puzzle_info[permutation[0]]
-            for move_id in permutation[1:]:
-                result = [result[i] for i in puzzle_info[move_id]]
-            id = tuple(result)
-            if id in permutation_map:
-                permutation_map[id].append(permutation)
-            else:
-                permutation_map[id] = [permutation]
-    return permutation_map
+from genetic import genetic
+from identities import identities
+from puzzle import read_puzzle_info, read_puzzles
+from utils import read_solution, PUZZLE_TYPES
 
 
-if __name__ == "__main__":
-    num_iterations = 1000
-    size_population = 100
-    lucky_survivors = 10
-    num_crossovers = 20
-    num_mutations = 200
-
-    puzzle_info = read_puzzle_info("puzzle_info.csv")
+def evaluate(args):
+    total_score = 0
+    solution = read_solution(args.solution_file)
     puzzles = read_puzzles("puzzles.csv")
-    sample_submission = read_solution("sample_submission.csv")
-
+    puzzle_info = read_puzzle_info("puzzle_info.csv")
     for p in puzzles:
         p.set_allowed_moves(puzzle_info[p.type])
+    for permutation, puzzle in zip(solution, puzzles):
+        puzzle.full_permutation(permutation)
+        assert puzzle.is_solved
+        total_score += puzzle.score
+        print(total_score)
 
-    permutation_map = get_identities(puzzle_info["cube_2/2/2"], 5)
-    replacements = []
-    for k, v in permutation_map.items():
-        lengths = [len(p) for p in v]
-        min_p = min(lengths)
-        max_p = max(lengths)
-        if min_p < max_p:
-            replacement = [p for p in v if len(p) == min_p][0]
-            replacements += [(p, replacement) for p in v if len(p) > min_p]
-    # Sort replacements by larger sequences
-    replacements = sorted(replacements, key=lambda x: -len(x[0]))
+    return total_score
 
-    for puzzle_idx, p in enumerate(puzzles):
-        if p.type != "cube_2/2/2":
-            continue
-        cur_sol = p.clone().full_permutation(sample_submission[puzzle_idx])
-        p_str = cur_sol.submission
-        has_repl = True
-        while has_repl:
-            has_repl = False
-            cur_len = len(p_str)
-            for p1, p2 in replacements:
-                find_str = ".".join(p1)
-                replace_str = ".".join(p2)
-                p_str = p_str.replace(f".{find_str}", f".{replace_str}")
-                p_str = p_str.replace("..", ".")
-                p_str = p_str.replace(f",{find_str}", f",{replace_str}")
-            if len(p_str) < cur_len:
-                has_repl = True
-        new_sol = p.clone().full_permutation(p_str.split(",")[1].split("."))
-        cur_score = cur_sol.score
-        new_score = new_sol.score
-        print(f"***{new_sol.submission}")
 
-    solution_score = {
-        "original": 0,
-        "crossover": 0,
-        "replace-mutation": 0,
-        "delete-mutation": 0,
-        "insert-mutation": 0,
-    }
+parser = argparse.ArgumentParser(description="Santa 2023 Solver")
+subparsers = parser.add_subparsers(
+    title="subcommands",
+)
 
-    for puzzle_idx, p in enumerate(puzzles):
-        initial_solution = sample_submission[puzzle_idx]
-        current_score = len(initial_solution)
-        initial_permutations = [
-            p.random_solution(len(initial_solution)) for _ in range(size_population)
-        ]
-        initial_permutations.append(initial_solution)
+evaluate_parser = subparsers.add_parser("evaluate")
+evaluate_parser.add_argument("solution_file")
+evaluate_parser.set_defaults(func=evaluate)
 
-        pool = [
-            (p.clone().full_permutation(permutation), "original")
-            for permutation in initial_permutations
-        ]
+genetic_parser = subparsers.add_parser("genetic")
+evaluate_parser.add_argument("initial_solution_file")
+evaluate_parser.set_defaults(func=genetic)
+genetic_parser.add_argument("-i", "--num_iterations", type=int, default=1000)
+genetic_parser.add_argument("-n", "--size_population", type=int, default=100)
+genetic_parser.add_argument("-s", "--survival_rate", type=int, default=0)
+genetic_parser.add_argument("-c", "--num_crossovers", type=int, default=20)
+genetic_parser.add_argument("-m", "--num_mutations", type=int, default=200)
 
-        for i in range(num_iterations):
-            for j in range(num_crossovers):
-                new_p = crossover(*sample(pool, 2))
-                pool.append(
-                    (p.clone().full_permutation(remove_identity(new_p)), "crossover")
-                )
-            for j in range(num_mutations):
-                new_p, mutation_type = mutate(
-                    choice(pool)[0].permutations, p.allowed_move_ids
-                )
-                pool.append(
-                    (p.clone().full_permutation(remove_identity(new_p)), mutation_type)
-                )
+identities_parser = subparsers.add_parser("identities")
+identities_parser.add_argument("initial_solution_file")
+identities_parser.add_argument('--puzzle_type', choices=PUZZLE_TYPES, default=PUZZLE_TYPES[0])
+identities_parser.add_argument('-d', '--depth', type=int, default=5)
+identities_parser.set_defaults(func=identities)
 
-            pool = sorted(pool, key=lambda x: x[0].score)
-            pool = pool[: (size_population - lucky_survivors)] + sample(
-                pool[(size_population - lucky_survivors) :], k=lucky_survivors
-            )
-            new_score = pool[0][0].score
-            if new_score < current_score:
-                solution_score[pool[0][1]] += current_score - new_score
-                current_score = new_score
-
-            print(
-                f"Searching {puzzle_idx}/{len(puzzles)}, "
-                f"End of iteration {i+1}/{num_iterations}, "
-                f"Pool size: {len(pool)} "
-                f"Score: {len(initial_solution)}->{new_score}"
-            )
-        if pool[0][0].is_solved:
-            print(f"***{pool[0][0].submission}")
-        else:
-            print("No solution found")
-        print(solution_score)
+args = parser.parse_args()
+args.func(args)

@@ -1,6 +1,23 @@
+import json
 from random import choices, randrange
 
 from utils import get_inverse
+
+
+def read_puzzles(filename):
+    with open(filename, "r") as f:
+        lines = f.readlines()
+    return [Puzzle(*line.strip().split(",")) for line in lines[1:]]
+
+
+def read_puzzle_info(filename):
+    with open(filename, "r") as f:
+        lines = f.readlines()
+    type_moves = [line.strip().split(",", maxsplit=1) for line in lines[1:]]
+    return {
+        type: json.loads(moves.strip('"').replace("'", '"'))
+        for type, moves in type_moves
+    }
 
 
 class Puzzle:
