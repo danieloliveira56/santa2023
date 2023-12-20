@@ -1,41 +1,46 @@
-import os
 import itertools
-import json
-import random
-def get_inverse(permutation):
-    return [p[0] for p in sorted([(i, v) for i, v in enumerate(permutation)], key=lambda x: x[1])]
-class Puzzle():
+from random import choice, choices, randrange, sample
+
+from genetic import crossover, mutate
+from utils import (
+    get_inverse,
+    read_puzzle_info,
+    read_puzzles,
+    read_solution,
+    remove_identity,
+)
+
+
+class Puzzle:
     def __init__(self, id, puzzle_type, solution, initial, num_wildcards):
-        self.id = id
-        self.type = puzzle_type
-        self.initial = initial.split(";")
-        self.current = initial.split(";")
-        self.solution = solution.split(";")
-        self.num_wildcards = int(num_wildcards)
-        self.permutations = []
+        self._id = id
+        self._type = puzzle_type
+        self._initial = initial.split(";")
+        self._current = initial.split(";")
+        self._solution = solution.split(";")
+        self._num_wildcards = int(num_wildcards)
+        self._permutations = []
 
     def set_allowed_moves(self, allowed_moves):
-        self.allowed_moves = allowed_moves
+        self._allowed_moves = allowed_moves
 
     @property
     def allowed_move_ids(self):
-        return list(self.allowed_moves.keys())
+        return list(self._allowed_moves.keys())
 
     def random_solution(self, size):
-        permutations = random.choices(self.allowed_move_ids, k=size)
-        return [ '-'*random.randrange(2) + p for p in permutations ]
+        permutations = choices(self.allowed_move_ids, k=size)
+        return ["-" * randrange(2) + p for p in permutations]
 
     def permutate(self, move_id, inverse=False):
-        permutation = self.allowed_moves[move_id]
+        permutation = self._allowed_moves[move_id]
         if inverse:
             permutation = get_inverse(permutation)
-            self.permutations.append(f"-{move_id}")
+            self._permutations.append(f"-{move_id}")
         else:
-            self.permutations.append(move_id)
+            self._permutations.append(move_id)
 
-        self.current = [
-            self.current[i] for i in permutation
-        ]
+        self._current = [self._current[i] for i in permutation]
         return self
 
     def full_permutation(self, permutation_list):
@@ -44,165 +49,195 @@ class Puzzle():
         return self
 
     def clone(self):
-        cloned_puzzle = Puzzle(self.id, self.type, "", "", self.num_wildcards)
-        cloned_puzzle.solution = self.solution.copy()
-        cloned_puzzle.current = self.current.copy()
-        cloned_puzzle.initial = self.initial.copy()
-        cloned_puzzle.allowed_moves = self.allowed_moves.copy()
+        cloned_puzzle = Puzzle(self._id, self._type, "", "", self._num_wildcards)
+        cloned_puzzle._solution = self._solution.copy()
+        cloned_puzzle._current = self._current.copy()
+        cloned_puzzle._initial = self._initial.copy()
+        cloned_puzzle._allowed_moves = self._allowed_moves
+        assert self._current == self._initial
         return cloned_puzzle
 
     @property
     def score(self):
-        return 5 * sum([c1 != c2 for c1, c2 in zip(self.current, self.solution)]) + len(self) + (0 if self.is_solved else 2)
+        return (
+            2
+            * len(self._current)
+            * sum([c1 != c2 for c1, c2 in zip(self._current, self._solution)])
+            + len(self)
+            + (0 if self.is_solved else 2)
+        )
+
+    @property
+    def permutations(self):
+        return self._permutations.copy()
+
+    @property
+    def type(self):
+        return self._type
 
     @property
     def is_solved(self):
-        return self.current == self.solution
+        return self._current == self._solution
 
     @property
     def submission(self):
-        return f"{self.id},{'.'.join(self.permutations)}"
+        return f"{self._id},{'.'.join(self._permutations)}"
 
     def __len__(self):
-        return len(self.permutations)
+        return len(self._permutations)
 
     def __getitem__(self, item):
-        return self.permutations[item]
+        return self._permutations[item]
 
     def __repr__(self):
-        return(
+        return (
             "----------\n"
-            f"{self.id}: "
-            f"{self.type} "
-            f"[{self.num_wildcards}]\n"
-            f"{''.join(self.initial)}\n"
-            f"{''.join(self.current)}[{self.score}]\n"
-            f"{''.join(self.solution)}\n"
+            f"{self._id}: "
+            f"{self._type} "
+            f"[{self._num_wildcards}]\n"
+            f"{''.join(self._initial)}\n"
+            f"{''.join(self._current)}[{self.score}]\n"
+            f"{''.join(self._solution)}\n"
             f"{self.submission}\n"
             "----------"
-           )
+        )
 
-def get_puzzles(filename):
-    with open(filename, 'r') as f:
-        lines = f.readlines()
-    return [
-        Puzzle(*l.strip().split(","))
-        for l in lines[1:]
-    ]
 
-def get_puzzle_info(filename):
-    global l
-    with open(filename, 'r') as f:
-        lines = f.readlines()
-    type_moves = [l.strip().split(",", maxsplit=1) for l in lines[1:]]
-    return {
-        type: json.loads(moves.strip("\"").replace("'", "\""))
-        for type, moves in type_moves
-    }
-
-def crossover(permutations1, permutations2):
-    i = random.randrange(len(permutations1))
-    j = random.randrange(len(permutations2))
-    return permutations1[:i] + permutations2[j:]
-
-def mutate(permutation, allowed_move_ids):
-    mutated = False
-    while not mutated:
-        if len(permutation) > 1 and random.randrange(0,2):
-            i = random.randrange(len(permutation))
-            del permutation[i]
-            mutated = True
-
-        if not mutated and random.randrange(0,2):
-            i = random.randrange(len(permutation)+1)
-            new_move = '-'*random.randrange(2) + random.choice(allowed_move_ids)
-            permutation.insert(i,  new_move)
-            mutated = True
-
-        if not mutated and random.randrange(0,2):
-            i = random.randrange(len(permutation))
-            new_move = '-'*random.randrange(2) + random.choice(allowed_move_ids)
-            while new_move == permutation[i]:
-                new_move = '-' * random.randrange(2) + random.choice(allowed_move_ids)
-            permutation[i] = new_move
-            mutated = True
-    return permutation
-
-def remove_identity(permutation):
-    for i in range(len(permutation) - 1, 0):
-        if permutation[i] == f"-{permutation[i + 1]}" or permutation[i + 1] == f"-{permutation[i]}":
-            permutation.pop(i)
-            permutation.pop(i+1)
-    return permutation
-
-def get_identities(puzzle_info):
+def get_identities(puzzle_info, depth):
     move_ids = list(puzzle_info.keys())
     for id in move_ids:
         puzzle_info[f"-{id}"] = get_inverse(puzzle_info[id])
     move_ids = list(puzzle_info.keys())
     puzzle_size = len(list(puzzle_info.values())[0])
-    permutation_map = {
-        tuple(range(puzzle_size)): [()]
-    }
-    for n in range(1,4):
-        for permutations in itertools.permutations(move_ids, r=n):
-            result = puzzle_info[permutations[0]]
-            for move_id in permutations[1:]:
+    permutation_map = {tuple(range(puzzle_size)): [()]}
+    for n in range(1, depth + 1):
+        if n == 3:
+            identities = [
+                ".".join(p)
+                for p in permutation_map[tuple(range(puzzle_size))]
+                if len(p)
+            ]
+        for permutation in itertools.permutations(move_ids, r=n):
+            has_identity = False
+            if n > 2:
+                permutation_str = ".".join(permutation)
+                for p in identities:
+                    if p in permutation_str:
+                        has_identity = True
+                        break
+            if has_identity:
+                continue
+            result = puzzle_info[permutation[0]]
+            for move_id in permutation[1:]:
                 result = [result[i] for i in puzzle_info[move_id]]
             id = tuple(result)
-            print(id)
             if id in permutation_map:
-                permutation_map[id].append(permutations)
+                permutation_map[id].append(permutation)
             else:
-                permutation_map[id] = [permutations]
+                permutation_map[id] = [permutation]
     return permutation_map
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     num_iterations = 1000
     size_population = 100
-    lucky_survivors = 20
+    lucky_survivors = 10
     num_crossovers = 20
-    num_mutations = 50
+    num_mutations = 200
 
-    puzzle_info = get_puzzle_info("puzzle_info.csv")
-    puzzles = get_puzzles("puzzles.csv")
+    puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles("puzzles.csv")
+    sample_submission = read_solution("sample_submission.csv")
+
     for p in puzzles:
         p.set_allowed_moves(puzzle_info[p.type])
 
-    # permutation_map = get_identities(puzzle_info['cube_2/2/2'])
-    # for k, v in permutation_map.items():
-    #     print(k, v)
-    # exit()
+    permutation_map = get_identities(puzzle_info["cube_2/2/2"], 5)
+    replacements = []
+    for k, v in permutation_map.items():
+        lengths = [len(p) for p in v]
+        min_p = min(lengths)
+        max_p = max(lengths)
+        if min_p < max_p:
+            replacement = [p for p in v if len(p) == min_p][0]
+            replacements += [(p, replacement) for p in v if len(p) > min_p]
+    # Sort replacements by larger sequences
+    replacements = sorted(replacements, key=lambda x: -len(x[0]))
 
     for puzzle_idx, p in enumerate(puzzles):
-        pool = [p.clone() for _ in range(size_population)]
-        pool_solutions = [p.random_solution(20) for _ in range(size_population)]
-        for puzzle, permutation in zip(pool, pool_solutions):
-            puzzle.full_permutation(remove_identity(permutation))
+        if p.type != "cube_2/2/2":
+            continue
+        cur_sol = p.clone().full_permutation(sample_submission[puzzle_idx])
+        p_str = cur_sol.submission
+        has_repl = True
+        while has_repl:
+            has_repl = False
+            cur_len = len(p_str)
+            for p1, p2 in replacements:
+                find_str = ".".join(p1)
+                replace_str = ".".join(p2)
+                p_str = p_str.replace(f".{find_str}", f".{replace_str}")
+                p_str = p_str.replace("..", ".")
+                p_str = p_str.replace(f",{find_str}", f",{replace_str}")
+            if len(p_str) < cur_len:
+                has_repl = True
+        new_sol = p.clone().full_permutation(p_str.split(",")[1].split("."))
+        cur_score = cur_sol.score
+        new_score = new_sol.score
+        print(f"***{new_sol.submission}")
+
+    solution_score = {
+        "original": 0,
+        "crossover": 0,
+        "replace-mutation": 0,
+        "delete-mutation": 0,
+        "insert-mutation": 0,
+    }
+
+    for puzzle_idx, p in enumerate(puzzles):
+        initial_solution = sample_submission[puzzle_idx]
+        current_score = len(initial_solution)
+        initial_permutations = [
+            p.random_solution(len(initial_solution)) for _ in range(size_population)
+        ]
+        initial_permutations.append(initial_solution)
+
+        pool = [
+            (p.clone().full_permutation(permutation), "original")
+            for permutation in initial_permutations
+        ]
 
         for i in range(num_iterations):
             for j in range(num_crossovers):
-                new_p = crossover(*random.sample(pool,2))
-                remove_identity(new_p)
-                pool.append(p.clone().full_permutation(new_p))
-                print(p.clone())
+                new_p = crossover(*sample(pool, 2))
+                pool.append(
+                    (p.clone().full_permutation(remove_identity(new_p)), "crossover")
+                )
             for j in range(num_mutations):
-                new_p = mutate(random.choice(pool).permutations, p.allowed_move_ids)
-                remove_identity(new_p)
-                pool.append(p.clone().full_permutation(new_p))
+                new_p, mutation_type = mutate(
+                    choice(pool)[0].permutations, p.allowed_move_ids
+                )
+                pool.append(
+                    (p.clone().full_permutation(remove_identity(new_p)), mutation_type)
+                )
 
-            pool = sorted(pool, key=lambda x: x.score)
-            pool = pool[:(size_population-lucky_survivors)] + random.sample(pool[(size_population-lucky_survivors):], k=lucky_survivors)
-            # print(f"Searching {puzzle_idx}/{len(puzzles)}, End of iteration {i+1}/{num_iterations}, Pool size: {len(pool)} Current score: {pool[0].score}")
+            pool = sorted(pool, key=lambda x: x[0].score)
+            pool = pool[: (size_population - lucky_survivors)] + sample(
+                pool[(size_population - lucky_survivors) :], k=lucky_survivors
+            )
+            new_score = pool[0][0].score
+            if new_score < current_score:
+                solution_score[pool[0][1]] += current_score - new_score
+                current_score = new_score
 
-        if pool[0].is_solved:
-            print(pool[0])
-            print(f"***{pool[0].submission}")
+            print(
+                f"Searching {puzzle_idx}/{len(puzzles)}, "
+                f"End of iteration {i+1}/{num_iterations}, "
+                f"Pool size: {len(pool)} "
+                f"Score: {len(initial_solution)}->{new_score}"
+            )
+        if pool[0][0].is_solved:
+            print(f"***{pool[0][0].submission}")
         else:
             print("No solution found")
-
-
-
-
-
-
+        print(solution_score)
