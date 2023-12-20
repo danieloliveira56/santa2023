@@ -1,5 +1,6 @@
-from utils import get_inverse
 import pytest
+
+from utils import get_inverse
 
 
 @pytest.parametrize(
