@@ -1,6 +1,6 @@
 import pytest
 
-from utils import get_inverse
+from santa2023.utils import get_inverse
 
 
 @pytest.parametrize(
