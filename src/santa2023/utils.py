@@ -1,6 +1,5 @@
 import os
 
-
 PUZZLE_TYPES = [
     "cube_2/2/2",
     "cube_3/3/3",
@@ -29,6 +28,7 @@ PUZZLE_TYPES = [
     "globe_3/33",
     "globe_33/3",
     "globe_8/25",
+    "all",
 ]
 
 
@@ -46,7 +46,10 @@ def read_solution(filename):
         f.readline()
         lines = f.readlines()
     # lines = sorted(lines, key)
-    return [line.split(",")[1].strip().split(".") for line in lines]
+    return {
+        int(line.split(",")[0].strip()): line.split(",")[1].strip().split(".")
+        for line in lines
+    }
 
 
 def export_solution(puzzles, solution):
@@ -62,16 +65,22 @@ def export_solution(puzzles, solution):
     print(f"Saving solution of score {solution_score} as '{filename}'")
     with open(filename, "w") as f:
         f.write("id,moves\n")
-        for p, permutation in zip(puzzles, solution):
-            f.write(f"{p._id},{'.'.join(permutation)}\n")
+        if isinstance(solution, dict):
+            for p in puzzles:
+                f.write(f"{p._id},{'.'.join(solution[p._id])}\n")
+        else:
+            for p, permutation in zip(puzzles, solution):
+                f.write(f"{p._id},{'.'.join(permutation)}\n")
 
 
 def calculate_score(solution):
-    return sum(len(p) for p in solution)
+    if isinstance(solution, dict):
+        return sum(len(p) for p in solution.values())
+    else:
+        return sum(len(p) for p in solution)
 
 
 def remove_identity(permutation):
-    return permutation
     for i in range(len(permutation) - 1, 0):
         if (
             permutation[i] == f"-{permutation[i + 1]}"

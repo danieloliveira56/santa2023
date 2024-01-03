@@ -1,5 +1,5 @@
 import json
-from random import choices, randrange
+from random import choices
 
 from santa2023.utils import get_inverse
 
@@ -18,6 +18,69 @@ def read_puzzle_info(filename):
         type: json.loads(moves.strip('"').replace("'", '"'))
         for type, moves in type_moves
     }
+
+
+class Permutation:
+    def __init__(self, mapping, move_ids=[]):
+        if isinstance(move_ids, str):
+            self._move_ids = [move_ids]
+        else:
+            self._move_ids = move_ids
+        self._mapping = tuple(mapping)
+
+    @property
+    def move_ids(self):
+        return self._move_ids
+
+    def split(self, puzzle_info):
+        return [Permutation(puzzle_info[move_id], move_id) for move_id in self.move_ids]
+
+    @property
+    def mapping(self):
+        return self._mapping
+
+    def __mul__(self, other):
+        return Permutation(
+            [self.mapping[i] for i in other.mapping],
+            self.move_ids + other.move_ids,
+        )
+
+    def __invert__(self):
+        inv_moves = []
+        for id in reversed(self.move_ids):
+            if id.startswith("-"):
+                inv_moves.append(id[1:])
+            else:
+                inv_moves.append("-" + id)
+        return Permutation(
+            get_inverse(self.mapping),
+            inv_moves,
+        )
+
+    def __len__(self):
+        return len(self.move_ids)
+
+    def __lt__(self, other):
+        if len(self) < len(other):
+            return True
+        # elif len(self) == len(other):
+        #     return self._move_ids > other._move_ids
+        else:
+            return False
+
+    def __le__(self, other):
+        if len(self) < len(other):
+            return True
+        elif len(self) == len(other):
+            return self._move_ids >= other._move_ids
+        else:
+            return False
+
+    def __repr__(self):
+        return f"{'.'.join(self.move_ids)}"
+
+    def __eq__(self, other):
+        return self.mapping == other.mapping
 
 
 class Puzzle:

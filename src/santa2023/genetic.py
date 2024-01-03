@@ -1,13 +1,13 @@
 from random import choice, randrange, sample
 
 from santa2023.puzzle import read_puzzle_info, read_puzzles
-from santa2023.utils import read_solution, remove_identity, export_solution
+from santa2023.utils import export_solution, read_solution, remove_identity
 
 
 def crossover(permutations1, permutations2):
-    i = randrange(len(permutations1[0]))
-    j = randrange(len(permutations2[0]))
-    return permutations1[0][:i] + permutations2[0][j:]
+    i = randrange(len(permutations1))
+    j = randrange(len(permutations2))
+    return permutations1[:i] + permutations2[j:]
 
 
 def mutate(permutation, allowed_move_ids):
@@ -15,7 +15,7 @@ def mutate(permutation, allowed_move_ids):
     while not mutated:
         mutation_idx = randrange(4)
         if mutation_idx == 0:
-            ij = (randrange(len(permutation) + 1),  randrange(len(permutation) + 1))
+            ij = (randrange(len(permutation) + 1), randrange(len(permutation) + 1))
             i = min(ij)
             j = max(ij)
             deletion_size = j - i
@@ -81,14 +81,14 @@ def genetic(args):
             if cases and p._id not in cases:
                 new_solution.append(initial_permutation)
                 continue
-            current_score = len(initial_permutation)
             initial_permutations = [
-                p.random_solution(len(initial_permutation)) for _ in range(size_population)
+                p.random_solution(len(initial_permutation))
+                for _ in range(size_population)
             ]
             initial_permutations.append(initial_permutation)
 
             pool = [
-                (p.clone().full_permutation(permutation), "original")
+                (p.clone().full_permutation(permutation))
                 for permutation in initial_permutations
             ]
 
@@ -96,38 +96,41 @@ def genetic(args):
                 for j in range(num_crossovers):
                     new_p = crossover(*sample(pool, 2))
                     pool.append(
-                        (p.clone().full_permutation(remove_identity(new_p)), "crossover")
+                        (
+                            p.clone().full_permutation(
+                                remove_identity(new_p)
+                            )
+                        )
                     )
                 for j in range(num_mutations):
                     new_p, mutation_type = mutate(
-                        choice(pool)[0].permutations, p.allowed_move_ids
+                        choice(pool).permutations, p.allowed_move_ids
                     )
                     pool.append(
-                        (p.clone().full_permutation(remove_identity(new_p)), mutation_type)
+                        (
+                            p.clone().full_permutation(
+                                remove_identity(new_p)
+                            )
+                        )
                     )
 
-                pool = sorted(pool, key=lambda x: x[0].score)
+                pool = sorted(pool, key=lambda x: x.score)
                 pool = pool[: (size_population - num_survivors)] + sample(
                     pool[(size_population - num_survivors) :], k=num_survivors
                 )
-                new_score = pool[0][0].score
-                if new_score < current_score:
-                    solution_score[pool[0][1]] += current_score - new_score
-                    current_score = new_score
 
                 print(
                     f"Searching {puzzle_idx}/{len(puzzles)} ({p._type}), "
                     f"End of iteration {i + 1}/{num_iterations}, "
                     f"Pool size: {len(pool)} "
-                    f"Score: {len(initial_permutation)}->{new_score}",
-                    end="                                           \r"
+                    f"Score: {len(initial_permutation)}->{pool[0].score}",
+                    end="                                           \r",
                 )
-            print(f"{p._id}: {len(initial_permutation)}->{pool[0][0].score}", " " * 200)
-            new_solution.append(pool[0][0].permutations)
-
+            print(f"{p._id}: {len(initial_permutation)}->{pool[0].score}", " " * 200)
+            new_solution.append(pool[0].permutations)
 
     except KeyboardInterrupt:
-        new_solution = new_solution + initial_solution[len(new_solution):]
+        new_solution = new_solution + initial_solution[len(new_solution) :]
         pass
     except Exception as e:
         raise e
