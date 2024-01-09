@@ -1,10 +1,22 @@
 import math
+import os
 import time
+from pathlib import Path
 from typing import Iterable
 
-from santa2023.puzzle import Permutation, read_puzzle_info, read_puzzles
-from santa2023.utils import PUZZLE_TYPES, export_solution, get_inverse, read_solution, calculate_score
+import networkx as nx
 import sympy.combinatorics
+
+from santa2023.puzzle import Permutation, read_puzzle_info, read_puzzles
+from santa2023.utils import (
+    CSV_BASE_PATH,
+    PUZZLE_TYPES,
+    calculate_score,
+    export_solution,
+    get_inverse,
+    read_solution,
+)
+
 
 def get_identities(puzzle_info, depth):
     func_start = time.time()
@@ -125,8 +137,8 @@ def identities(args):
 
 def slow_identities(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles("puzzles.csv")
-    puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(puzzle_info[p.type])
 
@@ -174,19 +186,92 @@ def slow_identities(args):
         raise e
     export_solution(puzzles, new_solution)
 
+
 def test(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles("puzzles.csv")
-    all_puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(all_puzzle_info[p.type])
 
-    puzzle_type = 'globe_2/6'
+    puzzle_type = "cube_3/3/3"
     print(f"Puzzle type '{puzzle_type}' permutations:")
+    puzzle_size = [puzzle for puzzle in puzzles if puzzle.type == puzzle_type][0].size()
+    # Create graph of size puzzle_size
+    position_graph = nx.DiGraph()
+    position_graph.add_nodes_from(range(puzzle_size))
+
+    taboo_list = {3: {}}
+    taboo_list[3][""] = [move_id for move_id in all_puzzle_info[puzzle_type].keys()]
+    for move_id in all_puzzle_info[puzzle_type].keys():
+        taboo_list[3][""].append(f"-{move_id}")
+
+    for f in "fdr":
+        for i in range(3):
+            taboo_list[3][f"{f}{i}"] = (
+                [f"{f}{j}" for j in range(i, 3)]
+                + [f"{d}{j}" for j in range(3) for d in "fdr" if d != f]
+                + [f"-{f}{j}" for j in range(i + 1, 3)]
+                + [f"-{d}{j}" for j in range(3) for d in "fdr" if d != f]
+            )
+            taboo_list[3][f"-{f}{i}"] = (
+                [f"{f}{j}" for j in range(i + 1, 3)]
+                + [f"{d}{j}" for j in range(3) for d in "fdr" if d != f]
+                + [f"-{f}{j}" for j in range(i + 1, 3)]
+                + [f"-{d}{j}" for j in range(3) for d in "fdr" if d != f]
+            )
+    print(taboo_list)
 
     for key, value in all_puzzle_info[puzzle_type].items():
-        print(f"{key}:", sympy.combinatorics.Permutation(value))
-        print("\t", sympy.combinatorics.Permutation(value).array_form)
+        p = sympy.combinatorics.Permutation(value)
+        print(f"{key}:", p)
+        # print("\t", sympy.combinatorics.Permutation(value).array_form)
+        for group in p.cyclic_form:
+            if len(group) > 1:
+                for i in range(len(group)):
+                    position_graph.add_edge(group[i], group[(i + 1) % len(group)])
+
+    print(f"Graph size: {len(position_graph)}")
+    print(f"Graph edges: {len(position_graph.edges)}")
+    # Find connected components
+    connected_components = list(nx.weakly_connected_components(position_graph))
+    groups = []
+    group_moves = {}
+    group_reindex = {}
+    group_cost_database = {}
+    for i, component in enumerate(connected_components):
+        group_moves[i] = {}
+        print(f"Component {i}: {len(component)}")
+        print(component)
+        groups.append(component)
+        group_reindex[i] = {k: j for j, k in enumerate(component)}
+        print(group_reindex[i])
+        for move_id, move_mapping in all_puzzle_info[puzzle_type].items():
+            print(f"Move {move_id}: {move_mapping}")
+            for j in component:
+                print(j, end="->")
+                print(move_mapping[j], end="->")
+                print(group_reindex[i][move_mapping[j]])
+            group_moves[i][move_id] = [
+                group_reindex[i][move_mapping[j]] for j in component
+            ]
+            group_moves[i][f"-{move_id}"] = get_inverse(group_moves[i][move_id])
+        group_cost_database[i] = get_cost_database(
+            [puzzles[30]._solution[j] for j in component],
+            group_moves[i],
+            taboo_list[3],
+            15,
+        )
+        print()
+
+    for puzzle in puzzles:
+        if puzzle.type != puzzle_type:
+            continue
+        print(f"Testing puzzle {puzzle._id}")
+        for i, group in enumerate(groups):
+            group_solution = [group_reindex[i][j] for j in solution[puzzle._id]]
+            print(f"Group {i}: {group_solution}")
+            print(f"Cost: {group_cost_database[i][group_solution]}")
 
     keys = list(all_puzzle_info[puzzle_type].keys())
 
@@ -196,17 +281,16 @@ def test(args):
     ]
 
     for i in range(len(permutations)):
-        for j in range(i+1, len(permutations)):
-            if permutations[i]*permutations[j] == permutations[j]* permutations[i]:
+        for j in range(i + 1, len(permutations)):
+            if permutations[i] * permutations[j] == permutations[j] * permutations[i]:
                 print(f"Permutation {keys[i]},{keys[j]} are commutative")
 
     for i in range(len(permutations)):
         if permutations[i] == ~permutations[i]:
             print(f"Permutation {keys[i]} is its own inverse")
 
-
     for i in range(len(permutations)):
-        for j in range(i+1, len(permutations)):
+        for j in range(i + 1, len(permutations)):
             if permutations[i] == ~permutations[j]:
                 print(f"Permutation {keys[i]},{keys[j]} are inverses")
     exit()
@@ -232,20 +316,15 @@ def test(args):
     p2 = permutations[1]
     print(p1)
     print(p2)
-    print(p1*p2*(~p1))
+    print(p1 * p2 * (~p1))
+
 
 def fast_identities(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles("puzzles.csv")
-    all_puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(all_puzzle_info[p.type])
-
-    # max_len = 0
-    # for p in puzzles:
-    #     max_len = max(max_len, len(p._solution))
-    # print(f"Max solution length: {max_len}")
-    # exit()
 
     puzzle_type = args.puzzle_type
     if puzzle_type == "all":
@@ -254,13 +333,8 @@ def fast_identities(args):
     else:
         puzzle_types = [puzzle_type]
 
-    # for puzzle_type, puzzle_info in all_puzzle_info.items():
-    #     print(puzzle_type, len(puzzle_info))
-    # exit()
-
     all_shortest_permutations = {
         puzzle_type: get_fast_identities(
-
             all_puzzle_info[puzzle_type], args.depth, args.max_time
         )
         for puzzle_type in puzzle_types
@@ -289,23 +363,22 @@ def fast_identities(args):
                 end="\r",
             )
 
-            # size = len(permutations)
-            # size = 3
-            # print(f"size: {size}")
-            # while size < len(permutations) and time.time() - start < int(args.max_time):
-            #     for i in range(len(permutations) - size):
-            start = time.time()
             i = 0
             while i < len(permutations):
                 p = permutations[i]
-                j = i+1
+                j = i + 1
                 while j < len(permutations):
-                    print(f'Searching puzzle {puzzle._id} position {i:5d}-{j:5d}/{len(permutations):6d}             ', end='\r')
+                    print(
+                        f"Searching puzzle {puzzle._id} position {i:5d}-{j:5d}/{len(permutations):6d}             ",
+                        end="\r",
+                    )
                     p *= permutations[j]
                     id = p.mapping
                     if id in shortest_permutations:
                         if shortest_permutations[id] < p:
-                            permutations[i:j+1] = shortest_permutations[id].split(all_puzzle_info[puzzle.type])
+                            permutations[i : j + 1] = shortest_permutations[id].split(
+                                all_puzzle_info[puzzle.type]
+                            )
                             print(
                                 f"Searching puzzle {puzzle._id} ({puzzle.type}) [{i}:{j}](size={j-i+1}) ({initial_len})->({len(permutations)})"
                             )
@@ -313,10 +386,6 @@ def fast_identities(args):
 
                             j = i + len(shortest_permutations[id]) - 1
 
-                            # p_check = permutations[i]
-                            # for k in range(i+1, j+1):
-                            #     p_check *= permutations[k]
-                            # assert p_check.mapping == shortest_permutations[id].mapping
                         elif p < shortest_permutations[id]:
                             shortest_permutations[id] = p
                         else:
@@ -325,19 +394,6 @@ def fast_identities(args):
                         shortest_permutations[id] = p
                     j += 1
                 i += 1
-
-                    #     if shortest_permutations[id] < p:
-                    #         permutations[i : i + size + 1] = shortest_permutations[
-                    #             id
-                    #         ].split(all_puzzle_info[puzzle.type])
-                    #         print(
-                    #             f"Searching puzzle {puzzle._id} ({puzzle.type}) [{i}:{i+size+1}](size={size}) ({initial_len})->({len(permutations)})"
-                    #         )
-                    #     elif p < shortest_permutations[id]:
-                    #         shortest_permutations[id] = p
-                    # else:
-                    #     shortest_permutations[id] = p
-                # size += 1
 
             permutations_list = []
             for p in permutations:
@@ -368,8 +424,8 @@ def argmax(x: Iterable, key):
 
 def simple_wildcards(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles("puzzles.csv")
-    puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(puzzle_info[p.type])
     new_solution = []
@@ -391,8 +447,8 @@ def simple_wildcards(args):
 
 def shortcut(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles("puzzles.csv")
-    puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(puzzle_info[p.type])
     new_solution = []
@@ -429,46 +485,41 @@ def shortcut(args):
 
     export_solution(puzzles, new_solution)
 
-    # def sorting():
-    #     solution = read_solution(filename=args.initial_solution_file)
-    #     puzzles = read_puzzles("puzzles.csv")
-    #     puzzle_info = read_puzzle_info("puzzle_info.csv")
-    #     for p in puzzles:
-    #         p.initialize_move_list(puzzle_info[p.type])
-    #
-    #     new_solution = []
-    #     for permutation, puzzle in zip(solution, puzzles):
-    #         if "cube" not in puzzle.type:
-    #             new_solution.append(permutation)
-    #             continue
-    #         print(f"Sorting {puzzle.type} puzzle {puzzle._id}", end="\r")
-    #         new_permutation = []
-    #         current_letter = permutation[0].replace('-', '')[0]
-    #         current_group = []
-    #         for move in permutation:
-    #             if current_letter in move:
-    #                 current_group.append(move)
-    #             else:
-    #                 current_group
-
-    export_solution(puzzles, new_solution)
-
 
 def ensemble(args):
-    puzzles = read_puzzles("puzzles.csv")
-    solutions = []
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+
+    solution_files = []
     for filename in args.solution_files:
+        print(filename)
+        # Check if a folder was passed
+        if Path(filename).is_dir():
+            for file in os.listdir(filename):
+                if file.endswith(".csv"):
+                    solution_files.append(Path(filename) / file)
+        elif filename.endswith(".csv"):
+            solution_files.append(Path(filename))
+    print("Solution_files:")
+    for filename in solution_files:
+        print(filename)
+
+    solutions = []
+    for filename in solution_files:
         solutions.append(read_solution(filename))
 
     print(f"Loaded {len(solutions)} solutions:")
     for i, solution in enumerate(solutions):
-        print(f"Solution {i} - {args.solution_files[i]}: {calculate_score(solution):0,}")
+        print(f"Solution {i} - {solution_files[i]}: {calculate_score(solution):0,}")
     print()
     ensemble_solution = []
 
     for i in range(398):
         sol_lengths = [len(sol.get(i, [])) for sol in solutions]
         print(i, sol_lengths, end=" ")
-        ensemble_solution.append(sorted([sol.get(i) for sol in solutions if sol.get(i)], key=lambda x: len(x))[0])
+        ensemble_solution.append(
+            sorted(
+                [sol.get(i) for sol in solutions if sol.get(i)], key=lambda x: len(x)
+            )[0]
+        )
         print(len(ensemble_solution[-1]))
     export_solution(puzzles, ensemble_solution)

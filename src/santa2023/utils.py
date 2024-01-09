@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 PUZZLE_TYPES = [
     "cube_2/2/2",
@@ -30,6 +31,8 @@ PUZZLE_TYPES = [
     "globe_8/25",
     "all",
 ]
+
+CSV_BASE_PATH = Path(__file__).parent.parent.parent / "data"
 
 
 def get_inverse(permutation):
@@ -89,3 +92,16 @@ def remove_identity(permutation):
             permutation.pop(i)
             permutation.pop(i + 1)
     return permutation
+
+
+def sorted_solution(solution, sorting_key):
+    current_group = solution[:1]
+    new_solution = []
+    for move in solution[1:]:
+        if move.replace("-", "")[0] == current_group[-1].replace("-", "")[0]:
+            current_group.append(move)
+        else:
+            new_solution += sorted(current_group, key=sorting_key)
+            current_group = [move]
+    new_solution += sorted(current_group, key=sorting_key)
+    return new_solution

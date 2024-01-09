@@ -1,7 +1,12 @@
 from random import choice, randrange, sample
 
 from santa2023.puzzle import read_puzzle_info, read_puzzles
-from santa2023.utils import export_solution, read_solution, remove_identity
+from santa2023.utils import (
+    CSV_BASE_PATH,
+    export_solution,
+    read_solution,
+    remove_identity,
+)
 
 
 def crossover(permutations1, permutations2):
@@ -50,8 +55,8 @@ def mutate(permutation, allowed_move_ids):
 
 def genetic(args):
     initial_solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles("puzzles.csv")
-    puzzle_info = read_puzzle_info("puzzle_info.csv")
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(puzzle_info[p.type])
 
@@ -95,24 +100,12 @@ def genetic(args):
             for i in range(num_iterations):
                 for j in range(num_crossovers):
                     new_p = crossover(*sample(pool, 2))
-                    pool.append(
-                        (
-                            p.clone().full_permutation(
-                                remove_identity(new_p)
-                            )
-                        )
-                    )
+                    pool.append((p.clone().full_permutation(remove_identity(new_p))))
                 for j in range(num_mutations):
                     new_p, mutation_type = mutate(
                         choice(pool).permutations, p.allowed_move_ids
                     )
-                    pool.append(
-                        (
-                            p.clone().full_permutation(
-                                remove_identity(new_p)
-                            )
-                        )
-                    )
+                    pool.append((p.clone().full_permutation(remove_identity(new_p))))
 
                 pool = sorted(pool, key=lambda x: x.score)
                 pool = pool[: (size_population - num_survivors)] + sample(

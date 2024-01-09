@@ -100,6 +100,28 @@ class Puzzle:
             self._allowed_moves[f"-{id}"] = get_inverse(permutation)
 
     @property
+    def taboo_list(self):
+        taboo = {}
+
+        for move_id, permutation in self._allowed_moves.items():
+            taboo[(move_id)] = []
+            taboo[(move_id, move_id)] = [move_id]
+            if move_id.startswith("-"):
+                taboo[(move_id)].append(move_id)
+            for move_id2, permutation2 in self._allowed_moves.items():
+                if move_id != move_id2:
+                    if permutation == get_inverse(permutation2):
+                        taboo[(move_id)].append(move_id2)
+                        break
+                    group1 = move_id.replace("-", "")[0]
+                    group2 = move_id2.replace("-", "")[0]
+                    idx1 = int(move_id.replace("-", "")[1:])
+                    idx2 = int(move_id2.replace("-", "")[1:])
+                    if group1 == group2 and idx1 > idx2:
+                        taboo[(move_id)].append(move_id2)
+        return taboo
+
+    @property
     def allowed_move_ids(self):
         return list(self._allowed_moves.keys())
 
@@ -158,6 +180,9 @@ class Puzzle:
     @property
     def current_pattern_hash(self):
         return tuple(self._current).__hash__()
+
+    def size(self):
+        return len(self._current)
 
     def __len__(self):
         return len(self._permutations)
