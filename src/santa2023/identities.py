@@ -194,7 +194,8 @@ def test(args):
     for p in puzzles:
         p.initialize_move_list(all_puzzle_info[p.type])
 
-    puzzle_type = "cube_3/3/3"
+    puzzle_type = "globe_2/6"
+    puzzle_type = "cube_5/5/5"
     print(f"Puzzle type '{puzzle_type}' permutations:")
     puzzle_size = [puzzle for puzzle in puzzles if puzzle.type == puzzle_type][0].size()
     # Create graph of size puzzle_size
@@ -245,24 +246,21 @@ def test(args):
         print(component)
         groups.append(component)
         group_reindex[i] = {k: j for j, k in enumerate(component)}
-        print(group_reindex[i])
+        # print(group_reindex[i])
+        move_ct = 0
         for move_id, move_mapping in all_puzzle_info[puzzle_type].items():
-            print(f"Move {move_id}: {move_mapping}")
-            for j in component:
-                print(j, end="->")
-                print(move_mapping[j], end="->")
-                print(group_reindex[i][move_mapping[j]])
+            # for j in component:
+            #     # print(j, end="->")
+            #     # print(move_mapping[j], end="->")
+            #     print(group_reindex[i][move_mapping[j]])
             group_moves[i][move_id] = [
                 group_reindex[i][move_mapping[j]] for j in component
             ]
             group_moves[i][f"-{move_id}"] = get_inverse(group_moves[i][move_id])
-        group_cost_database[i] = get_cost_database(
-            [puzzles[30]._solution[j] for j in component],
-            group_moves[i],
-            taboo_list[3],
-            15,
-        )
-        print()
+            if list(group_moves[i][move_id]) != list(range(len(component))):
+                print(f"\t{move_id}: {group_moves[i][move_id]}")
+                move_ct += 1
+        print(f"\tMove count: {move_ct}")
 
     for puzzle in puzzles:
         if puzzle.type != puzzle_type:
@@ -445,6 +443,29 @@ def simple_wildcards(args):
     export_solution(puzzles, new_solution)
 
 
+def search_branching_shortcuts(puzzle, permutation, pattern_map, depth=1):
+    candidate_shortcuts = []
+    for idx1, move_id in enumerate(permutation):
+        puzzle.permutate(move_id)
+        for move_id2 in puzzle.allowed_move_ids:
+            p = puzzle.clone()
+            p.permutate(move_id2)
+            if p.current_pattern_hash in pattern_map:
+                idx2 = pattern_map[p.current_pattern_hash][0]
+                # print(idx1, idx2, move_id2)
+                if idx2 - idx1 > depth:
+                    candidate_shortcuts.append((idx1, idx2, move_id2))
+    if len(candidate_shortcuts) == 0:
+        return permutation
+
+    _, longest_shortcut = argmax(candidate_shortcuts, key=lambda x: x[1] - x[0])
+
+    idx1, idx2, move_id = longest_shortcut
+    new_permutation = permutation[: idx1 + 1] + [move_id] + permutation[idx2 + 1 :]
+
+    return new_permutation
+
+
 def shortcut(args):
     solution = read_solution(filename=args.initial_solution_file)
     puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
@@ -468,14 +489,19 @@ def shortcut(args):
                 positions for positions in pattern_map.values() if len(positions) > 1
             ]
             if len(candidate_shortcuts) == 0:
+                new_permutation = search_branching_shortcuts(puzzle.clone(), solution[puzzle._id].copy(), pattern_map)
+                if len(new_permutation) < len(solution[puzzle._id]):
+                    print(
+                        f"Searching branching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(new_permutation)}"
+                    )
+                    has_shortcut = True
                 continue
-            # candidate_shortcuts = sorted(candidate_shortcuts, key=lambda x: min(x)-max(x))
+            has_shortcut = True
             _, longest_shortcut = argmax(
                 candidate_shortcuts, key=lambda x: max(x) - min(x)
             )
             idx1 = min(longest_shortcut)
             idx2 = max(longest_shortcut)
-            has_shortcut = True
             new_permutation = new_permutation[: idx1 + 1] + new_permutation[idx2 + 1 :]
             print(
                 f"Searching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(new_permutation)}"
@@ -486,23 +512,30 @@ def shortcut(args):
     export_solution(puzzles, new_solution)
 
 
+def is_solution_file(filepath):
+    if filepath.suffix != ".csv":
+        return False
+    with open(filepath, "r") as f:
+        if f.readline().startswith("id,moves"):
+            return True
+    return False
+
 def ensemble(args):
     puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
 
-    solution_files = []
-    for filename in args.solution_files:
+    all_files = []
+    for filename in args.solution_files_or_folders:
         print(filename)
         # Check if a folder was passed
         if Path(filename).is_dir():
             for file in os.listdir(filename):
-                if file.endswith(".csv"):
-                    solution_files.append(Path(filename) / file)
-        elif filename.endswith(".csv"):
-            solution_files.append(Path(filename))
-    print("Solution_files:")
-    for filename in solution_files:
-        print(filename)
+                all_files.append(Path(filename) / file)
+        else:
+            all_files.append(Path(filename))
 
+    print(all_files)
+    solution_files = [filename for filename in all_files if is_solution_file(filename)]
+    print(solution_files)
     solutions = []
     for filename in solution_files:
         solutions.append(read_solution(filename))
@@ -510,7 +543,8 @@ def ensemble(args):
     print(f"Loaded {len(solutions)} solutions:")
     for i, solution in enumerate(solutions):
         print(f"Solution {i} - {solution_files[i]}: {calculate_score(solution):0,}")
-    print()
+    print("*Note: No validation is done on the solutions, only moves are counted. "
+          "Assure they are valid using `evaluate`")
     ensemble_solution = []
 
     for i in range(398):

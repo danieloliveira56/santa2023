@@ -145,7 +145,7 @@ class Puzzle:
         cloned_puzzle._current = self._current.copy()
         cloned_puzzle._initial = self._initial.copy()
         cloned_puzzle._allowed_moves = self._allowed_moves
-        assert self._current == self._initial
+        # assert self._current == self._initial
         return cloned_puzzle
 
     @property

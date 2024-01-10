@@ -1,3 +1,18 @@
 [project]
 name="santa2023"
-version="1.0"
+description="Solver and Utilities for the 2023 Kaggle Santa competition"
+dynamic=["version"]
+
+dependencies=[
+    "matplotlib",
+    "networkx",
+    "sympy",
+]
+
+[project.optional-dependencies]
+test=[
+    "pytest",
+]
+
+[project.scripts]
+santa2023="santa2023.cli:main"
