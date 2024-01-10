@@ -447,16 +447,15 @@ def search_branching_shortcuts(puzzle, permutation, pattern_map, depth=1):
     candidate_shortcuts = []
     for idx1, move_id in enumerate(permutation):
         puzzle.permutate(move_id)
-        for move_id2 in puzzle.allowed_move_ids:
+        for move_id2 in puzzle.current_allowed_move_ids:
             p = puzzle.clone()
             p.permutate(move_id2)
             if p.current_pattern_hash in pattern_map:
                 idx2 = pattern_map[p.current_pattern_hash][0]
-                # print(idx1, idx2, move_id2)
                 if idx2 - idx1 > depth:
                     candidate_shortcuts.append((idx1, idx2, move_id2))
     if len(candidate_shortcuts) == 0:
-        return permutation
+        return None
 
     _, longest_shortcut = argmax(candidate_shortcuts, key=lambda x: x[1] - x[0])
 
@@ -477,7 +476,7 @@ def shortcut(args):
         print(f"Searching shortcuts for {puzzle._id}", end="\r")
         new_permutation = solution[puzzle._id].copy()
         has_shortcut = True
-        while has_shortcut:
+        while has_shortcut and len(new_permutation) < 3000:
             has_shortcut = False
             p = puzzle.clone()
             pattern_map = {p.current_pattern_hash: [0]}
@@ -489,11 +488,14 @@ def shortcut(args):
                 positions for positions in pattern_map.values() if len(positions) > 1
             ]
             if len(candidate_shortcuts) == 0:
-                new_permutation = search_branching_shortcuts(puzzle.clone(), solution[puzzle._id].copy(), pattern_map)
-                if len(new_permutation) < len(solution[puzzle._id]):
+                if len(new_permutation) > 3000:
+                    continue
+                shortcut_solution = search_branching_shortcuts(puzzle.clone(), new_permutation, pattern_map)
+                if shortcut_solution:
                     print(
-                        f"Searching branching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(new_permutation)}"
+                        f"Searching branching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(shortcut_solution)}"
                     )
+                    new_permutation = shortcut_solution
                     has_shortcut = True
                 continue
             has_shortcut = True

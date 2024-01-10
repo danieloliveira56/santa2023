@@ -83,6 +83,50 @@ class Permutation:
         return self.mapping == other.mapping
 
 
+def cube_taboo_list(size):
+    taboo = {}
+    for frd in "fdr":
+        for i in range(size):
+            # f1.-f1 not allowed
+            taboo[f"{frd}{i}"] = [f"-{frd}{i}"]
+            # -f1.f1 and -f1.-f1 not allowed
+            taboo[f"-{frd}{i}"] = [f"{frd}{i}", f"-{frd}{i}"]
+
+            # f1.f1.f1 not allowed
+            taboo[(f"{frd}{i}", f"{frd}{i}")] = [f"{frd}{i}"]
+            # -f1.-f1.-f1 not allowed
+            taboo[(f"-{frd}{i}", f"-{frd}{i}")] = [f"-{frd}{i}"]
+
+            for j in range(i):
+                # f2.f1 not allowed
+                taboo[f"{frd}{i}"].append(f"{frd}{j}")
+                # f2.-f1 not allowed
+                taboo[f"{frd}{i}"].append(f"-{frd}{j}")
+                # -f2.f1 not allowed
+                taboo[f"-{frd}{i}"].append(f"{frd}{j}")
+                # -f2.-f1 not allowed
+                taboo[f"-{frd}{i}"].append(f"-{frd}{j}")
+
+    return taboo
+
+def wreath_taboo_list(size):
+    return {
+        'r': ['-r'],
+        '-r': ['r'],
+        'l': ['-l'],
+        '-l': ['l']
+    }
+
+def globe_taboo_list(latitude_size, longitude_size):
+    taboo = {}
+    for i in range(latitude_size+1):
+        taboo[f"r{i}"] = [f"-r{i}"]
+        taboo[f"-r{i}"] = [f"r{i}"]
+    for i in range(2*longitude_size):
+        taboo[f"f{i}"] = [f"-f{i}", f"f{i}"]
+        taboo[f"-f{i}"] = [f"-f{i}", f"f{i}"]
+    return taboo
+
 class Puzzle:
     def __init__(self, id, puzzle_type, solution, initial, num_wildcards):
         self._id = int(id)
@@ -92,6 +136,7 @@ class Puzzle:
         self._solution = solution.split(";")
         self._num_wildcards = int(num_wildcards)
         self._permutations = []
+        self._taboo = None
 
     def initialize_move_list(self, allowed_moves):
         self._allowed_moves = {}
@@ -101,29 +146,34 @@ class Puzzle:
 
     @property
     def taboo_list(self):
-        taboo = {}
+        if self._taboo is None or len(self._taboo) == 0:
+            if self.type.startswith("cube"):
+                s = int(self.type.split("_")[1].split("/")[0])
+                self._taboo = cube_taboo_list(s)
+            elif self.type.startswith("wreath"):
+                s = int(self.type.split("_")[1].split("/")[0])
+                self._taboo = wreath_taboo_list(s)
+            else:
+                s1 = int(self.type.split("_")[1].split("/")[0])
+                s2 = int(self.type.split("_")[1].split("/")[1])
+                self._taboo = globe_taboo_list(s1,s2)
 
-        for move_id, permutation in self._allowed_moves.items():
-            taboo[(move_id)] = []
-            taboo[(move_id, move_id)] = [move_id]
-            if move_id.startswith("-"):
-                taboo[(move_id)].append(move_id)
-            for move_id2, permutation2 in self._allowed_moves.items():
-                if move_id != move_id2:
-                    if permutation == get_inverse(permutation2):
-                        taboo[(move_id)].append(move_id2)
-                        break
-                    group1 = move_id.replace("-", "")[0]
-                    group2 = move_id2.replace("-", "")[0]
-                    idx1 = int(move_id.replace("-", "")[1:])
-                    idx2 = int(move_id2.replace("-", "")[1:])
-                    if group1 == group2 and idx1 > idx2:
-                        taboo[(move_id)].append(move_id2)
-        return taboo
+        return self._taboo
 
     @property
     def allowed_move_ids(self):
         return list(self._allowed_moves.keys())
+
+    @property
+    def current_allowed_move_ids(self):
+        if len(self) == 0:
+            return self.allowed_move_ids
+
+        forbidden_moves = self.taboo_list[self[-1]]
+        if len(self) > 1:
+            forbidden_moves += self.taboo_list.get((self[-2], self[-1]), [])
+
+        return [move_id for move_id in self.allowed_move_ids if move_id not in forbidden_moves]
 
     def random_solution(self, size):
         return list(choices(self.allowed_move_ids, k=size))
