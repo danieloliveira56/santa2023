@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import List
 
 PUZZLE_TYPES = [
     "cube_2/2/2",
@@ -33,6 +34,12 @@ PUZZLE_TYPES = [
 ]
 
 CSV_BASE_PATH = Path(__file__).parent.parent.parent / "data"
+
+
+def print_solution(solution, debug=False):
+    print(".".join(solution))
+    if debug:
+        print(".".join([f"{i:{len(m)}d}" for i, m in enumerate(solution)]))
 
 
 def get_inverse(permutation):
@@ -94,7 +101,31 @@ def remove_identity(permutation):
     return permutation
 
 
-def sorted_solution(solution, sorting_key):
+def default_sorting_key(x):
+    return x.replace("-", "")
+
+
+def cube_sorting_key(x):
+    k = int(x.replace("-", "")[1:])
+    if x.startswith("-"):
+        k -= 0.1
+    return k
+
+
+def sorted_solution(puzzle, solution: List[str]):
+    """
+    Sorts commutative moves in the solution of cube and wreath puzzles
+    :param puzzle:
+    :param solution: Sequence of moves for the puzzle
+    :return:
+    """
+    if puzzle.type.startswith("globe"):
+        return [move_id.replace("-f", "f") for move_id in solution[puzzle._id]]
+
+    sorting_key = default_sorting_key
+    if puzzle.type.startswith("cube"):
+        sorting_key = cube_sorting_key
+
     current_group = solution[:1]
     new_solution = []
     for move in solution[1:]:
@@ -105,3 +136,39 @@ def sorted_solution(solution, sorting_key):
             current_group = [move]
     new_solution += sorted(current_group, key=sorting_key)
     return new_solution
+
+
+def clean_cube_solution(puzzle, solution):
+    solution = sorted_solution(
+        puzzle,
+        solution,
+    )
+    str_solution = "." + ".".join(solution) + "."
+    old_str_solution = ""
+    cube_size = int(puzzle.type.split("/")[1])
+
+    while old_str_solution != str_solution:
+        old_str_solution = str_solution
+        for fdr in "fdr":
+            for i in range(cube_size):
+                str_solution = str_solution.replace(
+                    f".{fdr}{i}.{fdr}{i}.{fdr}{i}.", f".-{fdr}{i}."
+                )
+                str_solution = str_solution.replace(
+                    f".-{fdr}{i}.-{fdr}{i}.-{fdr}{i}.", f".{fdr}{i}."
+                )
+                str_solution = str_solution.replace(f".-{fdr}{i}.{fdr}{i}.", ".")
+                str_solution = str_solution.replace(f".{fdr}{i}.-{fdr}{i}.", ".")
+                str_solution = str_solution.replace(
+                    f".-{fdr}{i}.-{fdr}{i}.", f".{fdr}{i}.{fdr}{i}."
+                )
+                str_solution = str_solution.replace(
+                    f".{fdr}{i}.{fdr}{i}.{fdr}{i}.{fdr}{i}.", "."
+                )
+        solution = sorted_solution(
+            puzzle,
+            str_solution[1:-1].split("."),
+        )
+        str_solution = "." + ".".join(solution) + "."
+
+    return str_solution[1:-1].split(".")

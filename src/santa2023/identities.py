@@ -194,8 +194,138 @@ def test(args):
     for p in puzzles:
         p.initialize_move_list(all_puzzle_info[p.type])
 
-    puzzle_type = "globe_2/6"
-    puzzle_type = "cube_5/5/5"
+    puzzle = puzzles[args.puzzle_id]
+    puzzle_type = puzzle.type
+
+    print(puzzle._id)
+    print(puzzle_type)
+
+    print(f"Puzzle type '{puzzle_type}' permutations:")
+
+    keys = list(all_puzzle_info[puzzle_type].keys())
+
+    permutations = [
+        sympy.combinatorics.Permutation(p)
+        for p in all_puzzle_info[puzzle_type].values()
+    ]
+
+    for i in range(len(permutations)):
+        for j in range(len(permutations)):
+            if i == j:
+                continue
+            if permutations[i] * permutations[j] == permutations[j] * permutations[i]:
+                print(f"Permutation {keys[i]}, {keys[j]} are commutative")
+        print()
+
+    for i in range(len(permutations)):
+        if permutations[i] == ~permutations[i]:
+            print(f"Permutation {keys[i]} is its own inverse")
+
+    for i in range(len(permutations)):
+        for j in range(i + 1, len(permutations)):
+            if permutations[i] == ~permutations[j]:
+                print(f"Permutation {keys[i]},{keys[j]} are inverses")
+
+    for puzzle in puzzles[353:]:
+        print(f"Searching puzzle {puzzle._id} ({puzzle.type})")
+        puzzle_type = puzzle.type
+        permutations = {
+            move_id: sympy.combinatorics.Permutation(p)
+            for move_id, p in all_puzzle_info[puzzle_type].items()
+        }
+        for move_id, p in all_puzzle_info[puzzle_type].items():
+            permutations[f"-{move_id}"] = ~sympy.combinatorics.Permutation(p)
+
+        initial_length = len(solution[puzzle._id])
+        current_length = initial_length
+        has_commute = True
+        while has_commute:
+            has_commute = False
+            i = 0
+            while i < len(solution[puzzle._id]) - 1:
+                print(
+                    f"Searching commutative {i}/{len(solution[puzzle._id])}", end="\r"
+                )
+                if i >= len(solution[puzzle._id]):
+                    print(
+                        f"i={i} >= len(solution[puzzle._id])={len(solution[puzzle._id])}"
+                    )
+                    break
+                p1 = permutations[solution[puzzle._id][i]]
+                j = i + 1
+                p_range = sympy.combinatorics.Permutation(list(range(p1.size)))
+                while j < len(solution[puzzle._id]):
+                    while (
+                        j < len(solution[puzzle._id])
+                        and p1 != ~permutations[solution[puzzle._id][j]]
+                    ):
+                        p_range *= permutations[solution[puzzle._id][j]]
+                        j += 1
+
+                    if j == len(solution[puzzle._id]):
+                        i += 1
+                        continue
+
+                    if p1 * p_range == p_range * p1:
+                        print(
+                            f"Found commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}],",
+                            end="",
+                        )
+                        solution[puzzle._id] = (
+                            solution[puzzle._id][:i]
+                            + solution[puzzle._id][i + 1 : j]
+                            + solution[puzzle._id][j + 1 :]
+                        )
+                        print(f" new size: {len(solution[puzzle._id])}")
+                        has_commute = True
+                        break
+                    else:
+                        p_range *= permutations[solution[puzzle._id][j]]
+                        j += 1
+                if i % 100 == 0 and len(solution[puzzle._id]) < current_length:
+                    export_solution(puzzles, solution)
+                    current_length = len(solution[puzzle._id])
+                i += 1
+
+        if len(solution[puzzle._id]) < initial_length:
+            export_solution(puzzles, solution)
+
+        # move_id2 = solution[puzzle._id][i + 1]
+        # move_id3 = solution[puzzle._id][i + 2]
+        # move_id4 = solution[puzzle._id][i + 3]
+        # if permutations[move_id2] * permutations[move_id3] * permutations[move_id4] == permutations[move_id4] * permutations[move_id2] * permutations[move_id3] and permutations[move_id4] == ~permutations[move_id2]:
+        #     print(f"{i}: {move_id1}.{move_id2}, {move_id3} are commutative", end=" ")
+        #     if last_i == i - 1:
+        #         print("and adjacent", end=" ")
+        #     print(".".join(solution[puzzle._id][i-1:i+4]))
+        #
+        #     last_i = i
+    exit()
+
+    print(f"Puzzle type '{puzzle_type}' permutations:")
+    for i, p in enumerate(permutations):
+        print(f"Permutation {i}:")
+        print(p)
+        print(p.array_form)
+        print(p.cyclic_form)
+        print()
+
+    G = sympy.combinatorics.PermutationGroup(permutations)
+
+    print(f"Group '{puzzle_type}' base:")
+    print(G.base)
+    print(f"Group '{puzzle_type}' generators:")
+    for p in G.strong_gens:
+        print(p)
+
+    print()
+    p1 = permutations[0]
+    p2 = permutations[1]
+    print(p1)
+    print(p2)
+    print(p1 * p2 * (~p1))
+
+    # puzzle_type = "cube_5/5/5"
     print(f"Puzzle type '{puzzle_type}' permutations:")
     puzzle_size = [puzzle for puzzle in puzzles if puzzle.type == puzzle_type][0].size()
     # Create graph of size puzzle_size
@@ -270,51 +400,6 @@ def test(args):
             group_solution = [group_reindex[i][j] for j in solution[puzzle._id]]
             print(f"Group {i}: {group_solution}")
             print(f"Cost: {group_cost_database[i][group_solution]}")
-
-    keys = list(all_puzzle_info[puzzle_type].keys())
-
-    permutations = [
-        sympy.combinatorics.Permutation(p)
-        for p in all_puzzle_info[puzzle_type].values()
-    ]
-
-    for i in range(len(permutations)):
-        for j in range(i + 1, len(permutations)):
-            if permutations[i] * permutations[j] == permutations[j] * permutations[i]:
-                print(f"Permutation {keys[i]},{keys[j]} are commutative")
-
-    for i in range(len(permutations)):
-        if permutations[i] == ~permutations[i]:
-            print(f"Permutation {keys[i]} is its own inverse")
-
-    for i in range(len(permutations)):
-        for j in range(i + 1, len(permutations)):
-            if permutations[i] == ~permutations[j]:
-                print(f"Permutation {keys[i]},{keys[j]} are inverses")
-    exit()
-
-    print(f"Puzzle type '{puzzle_type}' permutations:")
-    for i, p in enumerate(permutations):
-        print(f"Permutation {i}:")
-        print(p)
-        print(p.array_form)
-        print(p.cyclic_form)
-        print()
-
-    G = sympy.combinatorics.PermutationGroup(permutations)
-
-    print(f"Group '{puzzle_type}' base:")
-    print(G.base)
-    print(f"Group '{puzzle_type}' generators:")
-    for p in G.strong_gens:
-        print(p)
-
-    print()
-    p1 = permutations[0]
-    p2 = permutations[1]
-    print(p1)
-    print(p2)
-    print(p1 * p2 * (~p1))
 
 
 def fast_identities(args):
@@ -490,7 +575,9 @@ def shortcut(args):
             if len(candidate_shortcuts) == 0:
                 if len(new_permutation) > 3000:
                     continue
-                shortcut_solution = search_branching_shortcuts(puzzle.clone(), new_permutation, pattern_map)
+                shortcut_solution = search_branching_shortcuts(
+                    puzzle.clone(), new_permutation, pattern_map
+                )
                 if shortcut_solution:
                     print(
                         f"Searching branching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(shortcut_solution)}"
@@ -522,6 +609,7 @@ def is_solution_file(filepath):
             return True
     return False
 
+
 def ensemble(args):
     puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
 
@@ -545,8 +633,10 @@ def ensemble(args):
     print(f"Loaded {len(solutions)} solutions:")
     for i, solution in enumerate(solutions):
         print(f"Solution {i} - {solution_files[i]}: {calculate_score(solution):0,}")
-    print("*Note: No validation is done on the solutions, only moves are counted. "
-          "Assure they are valid using `evaluate`")
+    print(
+        "*Note: No validation is done on the solutions, only moves are counted. "
+        "Assure they are valid using `evaluate`"
+    )
     ensemble_solution = []
 
     for i in range(398):

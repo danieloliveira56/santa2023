@@ -109,23 +109,21 @@ def cube_taboo_list(size):
 
     return taboo
 
+
 def wreath_taboo_list(size):
-    return {
-        'r': ['-r'],
-        '-r': ['r'],
-        'l': ['-l'],
-        '-l': ['l']
-    }
+    return {"r": ["-r"], "-r": ["r"], "l": ["-l"], "-l": ["l"]}
+
 
 def globe_taboo_list(latitude_size, longitude_size):
     taboo = {}
-    for i in range(latitude_size+1):
+    for i in range(latitude_size + 1):
         taboo[f"r{i}"] = [f"-r{i}"]
         taboo[f"-r{i}"] = [f"r{i}"]
-    for i in range(2*longitude_size):
+    for i in range(2 * longitude_size):
         taboo[f"f{i}"] = [f"-f{i}", f"f{i}"]
         taboo[f"-f{i}"] = [f"-f{i}", f"f{i}"]
     return taboo
+
 
 class Puzzle:
     def __init__(self, id, puzzle_type, solution, initial, num_wildcards):
@@ -156,9 +154,13 @@ class Puzzle:
             else:
                 s1 = int(self.type.split("_")[1].split("/")[0])
                 s2 = int(self.type.split("_")[1].split("/")[1])
-                self._taboo = globe_taboo_list(s1,s2)
+                self._taboo = globe_taboo_list(s1, s2)
 
         return self._taboo
+
+    @property
+    def allowed_moves(self):
+        return self._allowed_moves
 
     @property
     def allowed_move_ids(self):
@@ -173,7 +175,11 @@ class Puzzle:
         if len(self) > 1:
             forbidden_moves += self.taboo_list.get((self[-2], self[-1]), [])
 
-        return [move_id for move_id in self.allowed_move_ids if move_id not in forbidden_moves]
+        return [
+            move_id
+            for move_id in self.allowed_move_ids
+            if move_id not in forbidden_moves
+        ]
 
     def random_solution(self, size):
         return list(choices(self.allowed_move_ids, k=size))

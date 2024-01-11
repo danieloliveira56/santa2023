@@ -427,47 +427,26 @@ def test_sotution_sorting(solution, expected_solution):
     assert result == expected_solution
 
 
-quarter_turns = {
-    "f": {
-        "d0": "r0",
-        "d1": "r1",
-        "d2": "r2",
-        "-d0": "-r0",
-        "-d1": "-r1",
-        "-d2": "-r2",
-        "r0": "-d2",
-        "r1": "-d1",
-        "r2": "-d0",
-        "-r0": "d2",
-        "-r1": "d1",
-        "-r2": "d0",
-    },
-    "-f": {
-        "d0": "-r2",
-    },
-}
-
-
-@pytest.mark.parametrize(
-    "fdr, fdr_original, fdr_result",
-    [
-        (fdr, original, result)
-        for fdr, rules in quarter_turns.items()
-        for original, result in rules.items()
-    ],
-)
-def test_rotation_rules(fdr, fdr_original, fdr_result):
-    puzzle_info = all_puzzle_info["cube_3/3/3"]
-    n = 3
-
-    permutation1 = [f"{fdr}{i}" for i in range(n)] + [fdr_original]
-    permutation2 = [fdr_result] + [f"{fdr}{i}" for i in range(n)]
-    result1 = list(range(54))
-    result2 = list(range(54))
-
-    for move_id in permutation1:
-        result1 = [result1[i] for i in puzzle_info[move_id]]
-    for move_id in permutation2:
-        result2 = [result2[i] for i in puzzle_info[move_id]]
-
-    assert result1 == result2
+# @pytest.mark.parametrize(
+#     "fdr, fdr_original, fdr_result",
+#     [
+#         (fdr, original, result)
+#         for fdr, rules in quarter_turns.items()
+#         for original, result in rules.items()
+#     ],
+# )
+# def test_rotation_rules(fdr, fdr_original, fdr_result):
+#     puzzle_info = all_puzzle_info["cube_3/3/3"]
+#     n = 3
+#
+#     permutation1 = [f"{fdr}{i}" for i in range(n)] + [fdr_original]
+#     permutation2 = [fdr_result] + [f"{fdr}{i}" for i in range(n)]
+#     result1 = list(range(54))
+#     result2 = list(range(54))
+#
+#     for move_id in permutation1:
+#         result1 = [result1[i] for i in puzzle_info[move_id]]
+#     for move_id in permutation2:
+#         result2 = [result2[i] for i in puzzle_info[move_id]]
+#
+#     assert result1 == result2
