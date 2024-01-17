@@ -1,12 +1,8 @@
 from random import choice, randrange, sample
 
 from santa2023.puzzle import read_puzzle_info, read_puzzles
-from santa2023.utils import (
-    CSV_BASE_PATH,
-    export_solution,
-    read_solution,
-    remove_identity,
-)
+from santa2023.utils import (CSV_BASE_PATH, export_solution, read_solution,
+                             remove_identity)
 
 
 def crossover(permutations1, permutations2):

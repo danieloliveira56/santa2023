@@ -4,18 +4,12 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-import networkx as nx
 import sympy.combinatorics
 
-from santa2023.puzzle import Permutation, read_puzzle_info, read_puzzles
-from santa2023.utils import (
-    CSV_BASE_PATH,
-    PUZZLE_TYPES,
-    calculate_score,
-    export_solution,
-    get_inverse,
-    read_solution,
-)
+from santa2023.puzzle import (Permutation, WreathPuzzle, read_puzzle_info,
+                              read_puzzles)
+from santa2023.utils import (CSV_BASE_PATH, PUZZLE_TYPES, calculate_score,
+                             export_solution, get_inverse, read_solution)
 
 
 def get_identities(puzzle_info, depth):
@@ -187,6 +181,33 @@ def slow_identities(args):
     export_solution(puzzles, new_solution)
 
 
+def wreath(args):
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
+    for p in puzzles:
+        p.initialize_move_list(all_puzzle_info[p.type])
+
+    puzzle = puzzles[334]
+    wreath = WreathPuzzle(
+        puzzle._id,
+        puzzle.type,
+        ";".join(puzzle._initial),
+        ";".join(puzzle._solution),
+        puzzle._num_wildcards,
+    )
+    print(wreath)
+
+    sol = "l.-r.-l.l.l.l.l.l.l.-r.-l.l.l.l.l.l.l.l.l.l.l.-r.-r.-r.-r.-l.l.l.l.l.l.-r.-l.-r.-l.-l.l.l.l.l.l.l.l.l.-r.r.-l.l.l.l.l.l.l.-r.-r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.-r.r.-r.r.r.-r.r.-r.r.-r.-r.r.-r.r.-r.r.r.-r.-r.r.r.-r.r.-l.l.-r.r.-l.l.-r.-r.r.-r.-l.r.r.-r.-r.-l.l.r.l.-l.-r.r.-r.r.l.-r.-l.l.-r.r.-r.-r.-r.-r.-l.l.-l.-r.r.-l.l.l.r.-l.-l.-l.-l.-l.-r.r.l.-r.-r.-r.-r.r.-l.-r.-r.-r.-r.-r.-r.-r.-r.-l.-l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.l.r.-r.-l.r.-r.-l.l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.l.-l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-r.l.r.-l.-r.-r.-l.-l.r.l.-l.-r.l.-l.l.r.-r.-r.l.r.-l.r.-r.l.r.-l.l.-r.r.-r.-r.r.-l.-l.l.l.-l.r.-r.l.r.l.-l.-l.-l.-l.-l.-l.-l.-l.-l.-l.r.r.r.r.r.r.r.r.r.-l.l.l.l.l.l.-r.-r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.l.r.-r.r.-r.r.-r.r.-r.r.r.r.-r.-r.-r.r.-r.-l.r.-r.r.-r.r.-r.r.-r.r.l.-r.-r.r.-l.r.-r.l.-l.r.-r.l.-l.r.r.r.l.-r.-r.-r.r.r.-r.r.-r.-l.-r.r.l.-r.r.r.-r.r.r.-l.-l.-l.-l.-l.l.-r.l.r.-l.-r.-r.r.-l.-r.l.l.-r.-l.l.l.l.r.l.r.l.l.l.l.l.l.-r.-l.-l.-l.-l.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-l.l.l.l.-r.-l.-l.-l.l.l.l.r.-l.-l.-r.l.l.r.-r.l.r.l.-r.-l.r.-l.-r.l.r.l.-l.-l.l.-l.l.-r.-l.r.r.-r.l.-r.-l.l.r.-l.-r.-l.r.l.l.-r.-l.r.l.-l.-l.-r.r.-l.-l.l.-r.l.-l.-r.l.r.r.-l.-r.-r.r.l.l.-r.-l.-l.-r.l.r.r.-l.-r.-l.r.-l.-r.-l.l.l.l.r.-l.-r.-l.-l.-l.-l.-l.-l.-l.-l.-l.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-l.l.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-r.r.-l.l.-r.r.-r.-r.r.r.-r.r.-r.r.r.-r.-r.r.-r.l.l.r.-l.l.-r.l.-l.r.-r.-r.r.l.-l.r.-r.-l.-l.r.l.-l.l.r.-l.-r.l.r.-l.l.-l.-r.l.r.-l.-r.-r.-r.r.l.l.r.-r.l.-l.-l.-l.-r.r.r.-l.-r.l.r.-l.r.-r.-r.r.l.l.-r.r.l.-r.-r.r.r.-r.l.-r.r.r.-l.-r.l.r.-r.l.l.l.l.l.l.l.l.l.r.-l.l.l.l.l.l.l.l.l.l.l.r.-r.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.-l.-l.-r.r.-l.-l.-l.-l.-l.-l.-l.l.l.l.l.l.l.l.l.l.l.r.-r.l.r.-r.-r.-l.r.l.-r.l.-r.-r.-l.l.-r.-r.-r.-r.-l.l.-l.-l.-l.l.l.l.r.r.-l.-r.-r.l.r.r.-r.r.-l.-r.-l.-r.r.-r.l.r.-l.r.-l.-l.-l.-r.r.-l.-l.-r.r.-l.-l.-l.-l.-r.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.l.-l.-l.-l.-l.-r.-r.-r.-r.-r.l.l.r.-r.l.l.-r.-r.-r.-r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-r.r.-l.-l.-l.l.l.l.r.-r.-l.l.l.l.l.l.l.l.l.r.-r.l.-l.-l.-l.l.l.-r.r.-l.l.l.l.l.l.l.l.l.l.l.-r.r.-l.l.l.l.l.l.l.l.l.l.r.-r.-l.l.l.l.l.l.l.l.l.r.-r.l.l.r.-r.-l.-r.-l.l.r.-l.l.-r.r.l.l.-l.l.-r.r.-r.-l.r.l.-r.-l.-l.-l.-l.-l.-l.-l.-l.-l.-l.l.l.l.l.l.l.l.r.-r.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.l.-l.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.l.-l.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.l.-l.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.l.-l.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.-l.-l.-l.l.l.l.l.-r.r.-l.-l.-l.-l.l.l.l.l.r.-r.-l.l.l.l.l.l.l.l.r.-r.-l.-l.l.-l.-l.l.l.l.-r.r.-l.l.l.l.l.l.l.l.l.l.l.-r.r.-l.l.l.l.l.l.l.l.l.l.l.l.-l.r.r.l.-l.r.r.-r.-r.-r.-r.r.-l.r.l.-r.-l.-r.-r.-l.r.l.-r.r.-r.-l.-r.r.l.-r.-l.r.l.-r.l.-l.-r.-l.r.l.-r.-l.-r.r.-r.-l.-r.r.r.l.-r.-l.-l.l.l.l.l.l.l.l.l.l.l.l.-l.-l.l.l.l.l.l.l.l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.-r.r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.l.-l.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.r.-r.-l.-l.-l.l.l.l.-r.r.-l.r.-r.-l.-l.l.l.l.-r.r.-l.-l.-r.-r.-l.l.l.l.r.-r.-l.l.l.l.l.l.l.l.r.r.-l.l.l.l.l.l.l.l.l.l.l.r.-r.-l.l.l.l.l.l.l.l.l.l.l.r.-r.-r.l.-r.-l.r.l.r.-r.-l.r.l.-r.-l.-l.-r.l.-r.r.r.-l.-r.-r.l.-l.-l.r.l.-r.-l.l.r.-l.-r.l.r.r.-r.-l.-r.r.r.l.-r.-l.r.l.-l.r.-l.r.l.-r.r.-r.-l.-r.-r.-l.r.r.l.-r.-r.l.-l.-l.r.-l.l.r.l.r.-l.-r.l.r.-r.-r.r.l.l.l.l.l.l.l.l.l.-r"
+    sol = sol.split(".")
+
+    for p in sol:
+        wreath.permutate(p)
+    print(wreath)
+    while True:
+        wreath.permutate(input())
+        print(wreath)
+
+
 def test(args):
     solution = read_solution(filename=args.initial_solution_file)
     puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
@@ -213,8 +234,13 @@ def test(args):
         for j in range(len(permutations)):
             if i == j:
                 continue
-            if permutations[i] * permutations[j] == permutations[j] * permutations[i]:
+            if permutations[i].commutes_with(permutations[j]):
                 print(f"Permutation {keys[i]}, {keys[j]} are commutative")
+            pij = permutations[i] * permutations[j]
+            if pij == ~pij:
+                print(
+                    f"Permutations {keys[i]}.{keys[j]}, -{keys[i]}.-{keys[j]} are inverses"
+                )
         print()
 
     for i in range(len(permutations)):
@@ -225,8 +251,11 @@ def test(args):
         for j in range(i + 1, len(permutations)):
             if permutations[i] == ~permutations[j]:
                 print(f"Permutation {keys[i]},{keys[j]} are inverses")
+    exit()
 
-    for puzzle in puzzles[353:]:
+    for puzzle in puzzles:
+        if puzzle._id < 240:
+            continue
         print(f"Searching puzzle {puzzle._id} ({puzzle.type})")
         puzzle_type = puzzle.type
         permutations = {
@@ -243,9 +272,7 @@ def test(args):
             has_commute = False
             i = 0
             while i < len(solution[puzzle._id]) - 1:
-                print(
-                    f"Searching commutative {i}/{len(solution[puzzle._id])}", end="\r"
-                )
+                print(f"Searching commutative {i}/{len(solution[puzzle._id])}")
                 if i >= len(solution[puzzle._id]):
                     print(
                         f"i={i} >= len(solution[puzzle._id])={len(solution[puzzle._id])}"
@@ -254,34 +281,75 @@ def test(args):
                 p1 = permutations[solution[puzzle._id][i]]
                 j = i + 1
                 p_range = sympy.combinatorics.Permutation(list(range(p1.size)))
+                assert p_range.is_Identity
+                print(p_range)
+                print("p_range=[", end="")
                 while j < len(solution[puzzle._id]):
                     while (
                         j < len(solution[puzzle._id])
                         and p1 != ~permutations[solution[puzzle._id][j]]
                     ):
+                        print(solution[puzzle._id][j], end="*")
                         p_range *= permutations[solution[puzzle._id][j]]
                         j += 1
 
                     if j == len(solution[puzzle._id]):
-                        i += 1
                         continue
 
-                    if p1 * p_range == p_range * p1:
+                    print("testing j=" + str(j))
+                    if p1.commutes_with(p_range):
                         print(
                             f"Found commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}],",
                             end="",
                         )
-                        solution[puzzle._id] = (
+                        print()
+                        print(
+                            solution[puzzle._id][i],
+                            solution[puzzle._id][j],
+                            len(solution[puzzle._id]),
+                        )
+                        print(solution[puzzle._id][i - 10 : j + 10])
+                        print(solution[puzzle._id][i - 10 : i])
+                        print(solution[puzzle._id][i + 1 : j])
+                        print(solution[puzzle._id][j + 1 : j + 10])
+
+                        p_range_check = permutations[solution[puzzle._id][i + 1]]
+                        for k in range(i + 2, j):
+                            p_range_check *= permutations[solution[puzzle._id][k]]
+                        assert p_range_check == p_range
+                        assert (
+                            permutations[solution[puzzle._id][i]]
+                            == ~permutations[solution[puzzle._id][j]]
+                        )
+
+                        assert (
+                            puzzle.clone()
+                            .full_permutation(solution[puzzle._id])
+                            .is_solved
+                        ), "not solved to start with"
+
+                        new_sol = (
                             solution[puzzle._id][:i]
                             + solution[puzzle._id][i + 1 : j]
                             + solution[puzzle._id][j + 1 :]
                         )
+                        solution[puzzle._id] = new_sol
+                        print(solution[puzzle._id][i - 10 : j + 10])
                         print(f" new size: {len(solution[puzzle._id])}")
+                        assert (
+                            puzzle.clone()
+                            .full_permutation(solution[puzzle._id])
+                            .is_solved
+                        )
                         has_commute = True
+                        exit()
                         break
                     else:
+                        print("not")
+                        print(solution[puzzle._id][j], end="*")
                         p_range *= permutations[solution[puzzle._id][j]]
                         j += 1
+                print()
                 if i % 100 == 0 and len(solution[puzzle._id]) < current_length:
                     export_solution(puzzles, solution)
                     current_length = len(solution[puzzle._id])
@@ -326,80 +394,9 @@ def test(args):
     print(p1 * p2 * (~p1))
 
     # puzzle_type = "cube_5/5/5"
-    print(f"Puzzle type '{puzzle_type}' permutations:")
-    puzzle_size = [puzzle for puzzle in puzzles if puzzle.type == puzzle_type][0].size()
-    # Create graph of size puzzle_size
-    position_graph = nx.DiGraph()
-    position_graph.add_nodes_from(range(puzzle_size))
-
-    taboo_list = {3: {}}
-    taboo_list[3][""] = [move_id for move_id in all_puzzle_info[puzzle_type].keys()]
-    for move_id in all_puzzle_info[puzzle_type].keys():
-        taboo_list[3][""].append(f"-{move_id}")
-
-    for f in "fdr":
-        for i in range(3):
-            taboo_list[3][f"{f}{i}"] = (
-                [f"{f}{j}" for j in range(i, 3)]
-                + [f"{d}{j}" for j in range(3) for d in "fdr" if d != f]
-                + [f"-{f}{j}" for j in range(i + 1, 3)]
-                + [f"-{d}{j}" for j in range(3) for d in "fdr" if d != f]
-            )
-            taboo_list[3][f"-{f}{i}"] = (
-                [f"{f}{j}" for j in range(i + 1, 3)]
-                + [f"{d}{j}" for j in range(3) for d in "fdr" if d != f]
-                + [f"-{f}{j}" for j in range(i + 1, 3)]
-                + [f"-{d}{j}" for j in range(3) for d in "fdr" if d != f]
-            )
-    print(taboo_list)
-
-    for key, value in all_puzzle_info[puzzle_type].items():
-        p = sympy.combinatorics.Permutation(value)
-        print(f"{key}:", p)
-        # print("\t", sympy.combinatorics.Permutation(value).array_form)
-        for group in p.cyclic_form:
-            if len(group) > 1:
-                for i in range(len(group)):
-                    position_graph.add_edge(group[i], group[(i + 1) % len(group)])
-
-    print(f"Graph size: {len(position_graph)}")
-    print(f"Graph edges: {len(position_graph.edges)}")
-    # Find connected components
-    connected_components = list(nx.weakly_connected_components(position_graph))
-    groups = []
-    group_moves = {}
-    group_reindex = {}
-    group_cost_database = {}
-    for i, component in enumerate(connected_components):
-        group_moves[i] = {}
-        print(f"Component {i}: {len(component)}")
-        print(component)
-        groups.append(component)
-        group_reindex[i] = {k: j for j, k in enumerate(component)}
-        # print(group_reindex[i])
-        move_ct = 0
-        for move_id, move_mapping in all_puzzle_info[puzzle_type].items():
-            # for j in component:
-            #     # print(j, end="->")
-            #     # print(move_mapping[j], end="->")
-            #     print(group_reindex[i][move_mapping[j]])
-            group_moves[i][move_id] = [
-                group_reindex[i][move_mapping[j]] for j in component
-            ]
-            group_moves[i][f"-{move_id}"] = get_inverse(group_moves[i][move_id])
-            if list(group_moves[i][move_id]) != list(range(len(component))):
-                print(f"\t{move_id}: {group_moves[i][move_id]}")
-                move_ct += 1
-        print(f"\tMove count: {move_ct}")
-
-    for puzzle in puzzles:
-        if puzzle.type != puzzle_type:
-            continue
-        print(f"Testing puzzle {puzzle._id}")
-        for i, group in enumerate(groups):
-            group_solution = [group_reindex[i][j] for j in solution[puzzle._id]]
-            print(f"Group {i}: {group_solution}")
-            print(f"Cost: {group_cost_database[i][group_solution]}")
+    #     print(f"Puzzle type '{puzzle_type}' permutations:")
+    #     puzzle_size = [puzzle for puzzle in puzzles if puzzle.type == puzzle_type][0].size()
+    #     # Create graph of size puzzle_size
 
 
 def fast_identities(args):
@@ -513,7 +510,8 @@ def simple_wildcards(args):
         p.initialize_move_list(puzzle_info[p.type])
     new_solution = []
 
-    for puzzle in puzzles:
+    for id, sol in solution.items():
+        puzzle = puzzles[id]
         if puzzle._num_wildcards == 0:
             new_solution.append(solution[puzzle._id])
             continue
@@ -530,13 +528,18 @@ def simple_wildcards(args):
 
 def search_branching_shortcuts(puzzle, permutation, pattern_map, depth=1):
     candidate_shortcuts = []
+    p = sympy.combinatorics.Permutation(list(range(puzzle.size)))
+    allowed_moves = {
+        move_id: sympy.combinatorics.Permutation(puzzle._allowed_moves[move_id])
+        for move_id in puzzle.current_allowed_move_ids
+    }
     for idx1, move_id in enumerate(permutation):
-        puzzle.permutate(move_id)
+        p *= allowed_moves[move_id]
         for move_id2 in puzzle.current_allowed_move_ids:
-            p = puzzle.clone()
-            p.permutate(move_id2)
-            if p.current_pattern_hash in pattern_map:
-                idx2 = pattern_map[p.current_pattern_hash][0]
+            p_new = p * allowed_moves[move_id2]
+            p_new_hash = p_new
+            if p_new_hash in pattern_map:
+                idx2 = pattern_map[p_new_hash][0]
                 if idx2 - idx1 > depth:
                     candidate_shortcuts.append((idx1, idx2, move_id2))
     if len(candidate_shortcuts) == 0:
@@ -556,12 +559,21 @@ def shortcut(args):
     puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     for p in puzzles:
         p.initialize_move_list(puzzle_info[p.type])
-    new_solution = []
-    for puzzle in puzzles:
+    new_solution = {}
+    if args.puzzle_ids is not None:
+        print(args.puzzle_ids)
+        puzzles = [puzzles[i] for i in args.puzzle_ids[0]]
+
+    old_value = 0
+    new_value = 0
+    for id, sol in solution.items():
+        start = time.time()
+        puzzle = puzzles[id]
         print(f"Searching shortcuts for {puzzle._id}", end="\r")
         new_permutation = solution[puzzle._id].copy()
+        old_value += len(solution[puzzle._id])
         has_shortcut = True
-        while has_shortcut and len(new_permutation) < 3000:
+        while has_shortcut:
             has_shortcut = False
             p = puzzle.clone()
             pattern_map = {p.current_pattern_hash: [0]}
@@ -572,9 +584,7 @@ def shortcut(args):
             candidate_shortcuts = [
                 positions for positions in pattern_map.values() if len(positions) > 1
             ]
-            if len(candidate_shortcuts) == 0:
-                if len(new_permutation) > 3000:
-                    continue
+            if len(candidate_shortcuts) == 0 and len(new_permutation) < 4000:
                 shortcut_solution = search_branching_shortcuts(
                     puzzle.clone(), new_permutation, pattern_map
                 )
@@ -584,6 +594,8 @@ def shortcut(args):
                     )
                     new_permutation = shortcut_solution
                     has_shortcut = True
+                continue
+            else:
                 continue
             has_shortcut = True
             _, longest_shortcut = argmax(
@@ -595,10 +607,14 @@ def shortcut(args):
             print(
                 f"Searching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(new_permutation)}"
             )
+        new_value += len(new_permutation)
+        new_solution[puzzle._id] = new_permutation
+        print(f"Shortcut {puzzle._id} time: {time.time()-start:0.2f}s")
 
-        new_solution.append(new_permutation)
-
-    export_solution(puzzles, new_solution)
+    if new_value < old_value:
+        export_solution(puzzles, new_solution)
+    else:
+        print("No shortcuts found")
 
 
 def is_solution_file(filepath):

@@ -39,6 +39,10 @@ class Permutation:
     def mapping(self):
         return self._mapping
 
+    @property
+    def size(self):
+        return len(self._mapping)
+
     def __mul__(self, other):
         return Permutation(
             [self.mapping[i] for i in other.mapping],
@@ -237,6 +241,7 @@ class Puzzle:
     def current_pattern_hash(self):
         return tuple(self._current).__hash__()
 
+    @property
     def size(self):
         return len(self._current)
 
@@ -257,4 +262,55 @@ class Puzzle:
             f"{''.join(self._solution)}\n"
             f"{self.submission}\n"
             "----------"
+        )
+
+
+class WreathPuzzle(Puzzle):
+    def __init__(self, id, puzzle_type, solution, initial, num_wildcards):
+        super().__init__(id, puzzle_type, solution, initial, num_wildcards)
+        self._size = int(self.type.split("_")[1].split("/")[0])
+        self._allowed_moves = {
+            "r": [i for i in range(int(self.type.split("_")[1].split("/")[0]))],
+            "-r": [i for i in range(int(self.type.split("_")[1].split("/")[0]))],
+            "l": [i for i in range(int(self.type.split("_")[1].split("/")[0]))],
+            "-l": [i for i in range(int(self.type.split("_")[1].split("/")[0]))],
+        }
+
+    def random_solution(self, size):
+        return list(choices(self.allowed_move_ids, k=size))
+
+    def permutate(self, move_id):
+        self._permutations.append(move_id)
+        if move_id == "r":
+            self._current = [self._current[-1]] + self._current[:-1]
+        elif move_id == "-r":
+            self._current = self._current[1:] + [self._current[0]]
+        elif move_id == "l":
+            self._current = self._current[1:] + [self._current[0]]
+        elif move_id == "-l":
+            self._current = [self._current[-1]] + self._current[:-1]
+        return self
+
+    @property
+    def current_allowed_move_ids(self):
+        if len(self) == 0:
+            return self.allowed_move_ids
+
+        forbidden_moves = self.taboo_list[self[-1]]
+        if len(self) > 1:
+            forbidden_moves += self.taboo_list.get((self[-2], self[-1]), [])
+
+        return [
+            move_id
+            for move_id in self.allowed_move_ids
+            if move_id not in forbidden_moves
+        ]
+
+    def __str__(self):
+        return (
+            f"{'.'.join(self._solution)}\n"
+            f"{'.'.join(self._current)}\n"
+            # f"{'.'.join(self._current[:self._size])}\n"
+            # f"{'  ' * (self._size)}{self._current[self._size]}\n"
+            # f"{'  ' * (self._size+1) + '.'.join(self._current[self._size+1:])}\n"
         )

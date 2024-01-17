@@ -1,18 +1,20 @@
 import argparse
 
-from santa2023.rotation import eliminate_cube_rotations
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+import sympy.combinatorics
+
+from santa2023.rotation import (eliminate_cube_rotations,
+                                eliminate_globe_rotations)
 
 from .genetic import genetic
 from .ida import ida
-from .identities import ensemble, identities, shortcut, simple_wildcards, test
+from .identities import (ensemble, identities, shortcut, simple_wildcards,
+                         test, wreath)
 from .puzzle import read_puzzle_info, read_puzzles
-from .utils import (
-    CSV_BASE_PATH,
-    PUZZLE_TYPES,
-    export_solution,
-    read_solution,
-    sorted_solution,
-)
+from .utils import (CSV_BASE_PATH, PUZZLE_TYPES, export_solution, get_inverse,
+                    read_solution, sorted_solution)
 
 
 def plot(args):
@@ -100,6 +102,9 @@ def evaluate(args):
         "final_mismatches"
     )
     for puzzle in puzzles:
+        if puzzle._id not in solution:
+            print(f"Puzzle {puzzle._id} not in solution file")
+            continue
         if puzzle.type.startswith("cube"):
             for i in range(len(solution[puzzle._id]) - 1):
                 if solution[puzzle._id][i] == solution[puzzle._id][i + 1] and solution[
@@ -107,17 +112,26 @@ def evaluate(args):
                 ][i].startswith("-"):
                     solution[puzzle._id][i] = solution[puzzle._id][i][1:]
                     solution[puzzle._id][i + 1] = solution[puzzle._id][i + 1][1:]
-
-            if (
-                puzzle.type.startswith("cube")
-                and not args.fast
-                and (cases is None or puzzle._id in cases)
-            ):
-                solution[puzzle._id] = eliminate_cube_rotations(
-                    solution[puzzle._id], puzzle, debug=args.debug
-                )
-
             solution[puzzle._id] = sorted_solution(puzzle, solution[puzzle._id])
+
+        if (
+            puzzle.type.startswith("cube")
+            and not args.fast
+            and (cases is None or puzzle._id in cases)
+        ):
+            solution[puzzle._id] = eliminate_cube_rotations(
+                solution[puzzle._id], puzzle, debug=args.debug
+            )
+
+        if (
+            puzzle.type.startswith("globe")
+            and not args.fast
+            and puzzle.type != "globe_8/25"
+            and (cases is None or puzzle._id in cases)
+        ):
+            solution[puzzle._id] = eliminate_globe_rotations(
+                solution[puzzle._id], puzzle, debug=args.debug
+            )
 
         print(
             f"{puzzle._id}\t"
@@ -143,7 +157,124 @@ def evaluate(args):
 
     print(f"Solution value: {total}")
 
-    export_solution(puzzles, solution)
+    if args.export:
+        export_solution(puzzles, solution)
+
+
+colors = ["lightgrey", "green", "red", "blue", "orange", "yellow"]
+
+
+def plot_mapping(move_mapping, title, positions_to_plot=None, show_numbers=True):
+    num_positions = len(move_mapping)
+    cube_size = int(np.sqrt(num_positions / 6))
+    print(f"Cube size: {cube_size}")
+    print(f"Num positions: {num_positions}")
+
+    grid_height = cube_size * 3
+    grid_width = cube_size * 4
+
+    fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+
+    ax.set_xlim([0, grid_width])
+    ax.set_ylim([0, grid_height])
+    ax.set_xticks(range(grid_width))
+    ax.set_yticks(range(grid_height))
+
+    xbases = [cube_size, cube_size, cube_size * 2, cube_size * 3, 0, cube_size]
+    ybases = [
+        cube_size * 3,
+        cube_size * 2,
+        cube_size * 2,
+        cube_size * 2,
+        cube_size * 2,
+        cube_size,
+    ]
+
+    for face in range(6):
+        for i in range(cube_size * cube_size):
+            position = face * cube_size * cube_size + i
+            if positions_to_plot is not None and position not in positions_to_plot:
+                continue
+            dx, dy = i % cube_size, i // cube_size
+            x = xbases[face] + dx
+            y = ybases[face] - dy - 1
+
+            c = colors[move_mapping[position] // (cube_size * cube_size)]
+            # c = colors[mv[ii]]
+
+            ax.add_patch(plt.Rectangle((x, y), 1, 1, color=c))
+            if show_numbers:
+                ax.text(
+                    x + 0.5,
+                    y + 0.5,
+                    move_mapping[position],
+                    ha="center",
+                    va="center",
+                    color="black",
+                )
+
+    ax.set_title(title)
+    ax.grid(True)
+    plt.show()
+    # ax.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
+
+
+def study_graph(args):
+    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
+    allowed_moves = all_puzzle_info[args.puzzle_type]
+    puzzle_size = len(list(allowed_moves.values())[0])
+
+    position_graph = nx.DiGraph()
+    position_graph.add_nodes_from(range(puzzle_size))
+
+    for key, value in allowed_moves.items():
+        p = sympy.combinatorics.Permutation(value)
+        print(f"{key}:", p)
+        # print("\t", sympy.combinatorics.Permutation(value).array_form)
+        for group in p.cyclic_form:
+            if len(group) > 1:
+                for i in range(len(group)):
+                    position_graph.add_edge(group[i], group[(i + 1) % len(group)])
+
+    print(f"Graph size: {len(position_graph)}")
+    print(f"Graph edges: {len(position_graph.edges)}")
+    # Find connected components
+    connected_components = list(nx.weakly_connected_components(position_graph))
+    groups = []
+    group_moves = {}
+    group_reindex = {}
+    # group_cost_database = {}
+    for i, component in enumerate(connected_components):
+        group_moves[i] = {}
+        print(f"Component {i}: {len(component)}")
+        print(type(component), component)
+        plot_mapping(list(range(puzzle_size)), f"Component {i}: {component}", component)
+        groups.append(component)
+        group_reindex[i] = {k: j for j, k in enumerate(component)}
+        # print(group_reindex[i])
+        move_ct = 0
+        for move_id, move_mapping in allowed_moves.items():
+            # for j in component:
+            #     # print(j, end="->")
+            #     # print(move_mapping[j], end="->")
+            #     print(group_reindex[i][move_mapping[j]])
+            group_moves[i][move_id] = [
+                group_reindex[i][move_mapping[j]] for j in component
+            ]
+            group_moves[i][f"-{move_id}"] = get_inverse(group_moves[i][move_id])
+            if list(group_moves[i][move_id]) != list(range(len(component))):
+                print(f"\t{move_id}: {group_moves[i][move_id]}")
+                move_ct += 1
+        print(f"\tMove count: {move_ct}")
+
+    # for puzzle in puzzles:
+    #     if puzzle.type != puzzle_type:
+    #         continue
+    #     print(f"Testing puzzle {puzzle._id}")
+    #     for i, group in enumerate(groups):
+    #         group_solution = [group_reindex[i][j] for j in solution[puzzle._id]]
+    #         print(f"Group {i}: {group_solution}")
+    #         print(f"Cost: {group_cost_database[i][group_solution]}")
 
 
 def main():
@@ -164,6 +295,11 @@ def main():
         "-f",
         "--fast",
         help="skip validation of cube_19/19/19 and cube_33/33/33 puzzles",
+        action="store_true",
+    )
+    evaluate_parser.add_argument(
+        "-e",
+        "--export",
         action="store_true",
     )
     evaluate_parser.add_argument(
@@ -205,6 +341,9 @@ def main():
         description="Find identical patterns in a sequence of moves.",
     )
     shortcut_parser.add_argument("initial_solution_file")
+    shortcut_parser.add_argument(
+        "-p", "--puzzle_ids", type=int, action="append", nargs="*"
+    )
     shortcut_parser.set_defaults(func=shortcut)
 
     wildcards_parser = subparsers.add_parser(
@@ -244,6 +383,13 @@ def main():
     test_parser.add_argument("initial_solution_file")
     test_parser.add_argument("-p", "--puzzle_id", type=int, required=True)
     test_parser.set_defaults(func=test)
+
+    graph_parser = subparsers.add_parser("graph")
+    graph_parser.add_argument("puzzle_type")
+    graph_parser.set_defaults(func=study_graph)
+
+    graph_parser = subparsers.add_parser("wreath")
+    graph_parser.set_defaults(func=wreath)
 
     args = parser.parse_args()
     args.func(args)

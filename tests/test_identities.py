@@ -1,7 +1,7 @@
 import pytest
 
 from santa2023.identities import replace_moves
-from santa2023.puzzle import Permutation, read_puzzle_info
+from santa2023.puzzle import Permutation, read_puzzle_info, Puzzle
 from santa2023.utils import CSV_BASE_PATH, get_inverse, sorted_solution
 
 all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
@@ -293,6 +293,51 @@ def test_replace_moves(permutation, moves1, moves2, expected_permutation):
             "-f0.f2.-r2.d0.-r1.r2.-d2.-r0.f0.-d1.f2.-r0.-d1.-r1.-f0.-d2.f0.d2.-f0.-r0.f0.f0.r0.d1.-f0.-f2",
             "-f0.f2.-r2.d0.-r1.r2.-d2.-r0.f0.-d1.f2.-r0.-d1.-r1.-f0.-d2.f0.d2.-f0.-r0.f0.f0.r0.d1.-f0.-f2",
         ),
+        (
+            "globe_1/8",
+            "r0.r0.r0.r0.r0.r0.r0.r0.r0.r0.r0.r0.r0.r0.r0.r0",
+            "",
+        ),
+        (
+            "globe_1/16",
+            ["r0"] * 32,
+            "",
+        ),
+        (
+            "globe_2/6",
+            ["r0"] * 12,
+            "",
+        ),
+        (
+            "globe_3/4",
+            ["r0"] * 8,
+            "",
+        ),
+        (
+            "globe_6/4",
+            ["r0"] * 8,
+            "",
+        ),
+        (
+            "globe_6/8",
+            ["r0"] * 16,
+            "",
+        ),
+        (
+            "globe_6/10",
+            ["r0"] * 20,
+            "",
+        ),
+        (
+            "globe_3/33",
+            ["r0"] * 66,
+            "",
+        ),
+        (
+            "globe_8/25",
+            ["r0"] * 50,
+            "",
+        ),
     ],
 )
 def test_equivalency(puzzle_type, permutation1, permutation2):
@@ -307,6 +352,8 @@ def test_equivalency(puzzle_type, permutation1, permutation2):
         result1 = [result1[i] for i in puzzle_info[move_id]]
     result2 = list(range(n))
     for move_id in permutation2:
+        if move_id == "":
+            continue
         result2 = [result2[i] for i in puzzle_info[move_id]]
 
     assert result1 == result2
@@ -412,16 +459,16 @@ def test_permutation_class():
         ),
     ],
 )
-def test_sotution_sorting(solution, expected_solution):
+def test_solution_sorting(solution, expected_solution):
     if isinstance(solution, str):
         solution = solution.split(".")
     if isinstance(expected_solution, str):
         expected_solution = expected_solution.split(".")
 
+
     result = sorted_solution(
-        solution,
-        sorting_key=lambda x: (-0.1 if x.startswith("-") else 0.1)
-        + int(x.replace("-", "")[1:]),
+        puzzle=Puzzle(0, "cube_3/3/3", "", "", 0),
+        solution=solution,
     )
 
     assert result == expected_solution

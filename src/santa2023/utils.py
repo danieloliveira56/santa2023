@@ -76,8 +76,8 @@ def export_solution(puzzles, solution):
     with open(filename, "w") as f:
         f.write("id,moves\n")
         if isinstance(solution, dict):
-            for p in puzzles:
-                f.write(f"{p._id},{'.'.join(solution[p._id])}\n")
+            for id, moves in solution.items():
+                f.write(f"{id},{'.'.join(moves)}\n")
         else:
             for p, permutation in zip(puzzles, solution):
                 f.write(f"{p._id},{'.'.join(permutation)}\n")
@@ -112,6 +112,14 @@ def cube_sorting_key(x):
     return k
 
 
+def move_letter(move):
+    return move.replace("-", "")[0]
+
+
+def move_idx(move):
+    return int(move.replace("-", "")[1:])
+
+
 def sorted_solution(puzzle, solution: List[str]):
     """
     Sorts commutative moves in the solution of cube and wreath puzzles
@@ -119,12 +127,30 @@ def sorted_solution(puzzle, solution: List[str]):
     :param solution: Sequence of moves for the puzzle
     :return:
     """
-    if puzzle.type.startswith("globe"):
-        return [move_id.replace("-f", "f") for move_id in solution[puzzle._id]]
+    sorting_key = cube_sorting_key
+    if puzzle.type.startswith("wreath"):
+        sorting_key = default_sorting_key
 
-    sorting_key = default_sorting_key
-    if puzzle.type.startswith("cube"):
-        sorting_key = cube_sorting_key
+    if puzzle.type.startswith("globe"):
+        solution = [move.replace("-f", "f") for move in solution]
+        longitude_size = int(puzzle.type.split("_")[1].split("/")[1])
+        current_group = solution[:1]
+        new_solution = []
+        for move in solution[1:]:
+            if move_letter(move) == move_letter(current_group[-1]) == "r":
+                current_group.append(move)
+            elif (
+                move_letter(move) == move_letter(current_group[-1]) == "f"
+                and move_idx(move) % longitude_size
+                == move_idx(current_group[-1]) % longitude_size
+            ):
+                current_group.append(move)
+            else:
+                new_solution += sorted(current_group, key=sorting_key)
+                current_group = [move]
+
+        new_solution += sorted(current_group, key=sorting_key)
+        return new_solution
 
     current_group = solution[:1]
     new_solution = []
@@ -165,6 +191,37 @@ def clean_cube_solution(puzzle, solution):
                 str_solution = str_solution.replace(
                     f".{fdr}{i}.{fdr}{i}.{fdr}{i}.{fdr}{i}.", "."
                 )
+        solution = sorted_solution(
+            puzzle,
+            str_solution[1:-1].split("."),
+        )
+        str_solution = "." + ".".join(solution) + "."
+
+    return str_solution[1:-1].split(".")
+
+
+def clean_globe_solution(puzzle, solution):
+    latitude_size = int(puzzle.type.split("_")[1].split("/")[0])
+    longitude_size = int(puzzle.type.split("_")[1].split("/")[1])
+
+    str_solution = "." + ".".join(solution) + "."
+    old_str_solution = ""
+
+    while old_str_solution != str_solution:
+        old_str_solution = str_solution
+        for i in range(latitude_size + 1):
+            str_solution = str_solution.replace(f".r{i}.-r{i}.", ".")
+            str_solution = str_solution.replace(f".-r{i}.r{i}.", ".")
+            str_solution = str_solution.replace(
+                "." + ".".join([f"r{i}"] * 2 * (longitude_size)) + ".", "."
+            )
+            str_solution = str_solution.replace(
+                "." + ".".join([f"-r{i}"] * 2 * (longitude_size)) + ".", "."
+            )
+        for i in range(2 * longitude_size):
+            str_solution = str_solution.replace(f".-f{i}.", f".f{i}.")
+            str_solution = str_solution.replace(f".f{i}.f{i}.", ".")
+
         solution = sorted_solution(
             puzzle,
             str_solution[1:-1].split("."),
