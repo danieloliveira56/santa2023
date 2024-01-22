@@ -157,8 +157,7 @@ def evaluate(args):
 
     print(f"Solution value: {total}")
 
-    if args.export:
-        export_solution(puzzles, solution)
+    export_solution(puzzles, solution)
 
 
 colors = ["lightgrey", "green", "red", "blue", "orange", "yellow"]
@@ -218,11 +217,13 @@ def plot_mapping(move_mapping, title, positions_to_plot=None, show_numbers=True)
     plt.show()
     # ax.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
 
-
+def row_idx(i, cube_size):
+    return i // cube_size
 def study_graph(args):
     all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     allowed_moves = all_puzzle_info[args.puzzle_type]
     puzzle_size = len(list(allowed_moves.values())[0])
+    cube_size = int(args.puzzle_type.split("/")[1])
 
     position_graph = nx.DiGraph()
     position_graph.add_nodes_from(range(puzzle_size))
@@ -244,11 +245,18 @@ def study_graph(args):
     group_moves = {}
     group_reindex = {}
     # group_cost_database = {}
+
+    connected_components = sorted([sorted(list(x)) for x in connected_components], key=lambda x: row_idx(min(x), cube_size), reverse=True)
+
+    print(f"f_component = std::vector<std::vector<int>>({len(connected_components)});")
     for i, component in enumerate(connected_components):
+        print(f"_component[{i}] = {{{','.join([str(x) for x in component])}}};")
+
+        continue
         group_moves[i] = {}
-        print(f"Component {i}: {len(component)}")
+        # print(f"Component {i}: {len(component)}")
         print(type(component), component)
-        plot_mapping(list(range(puzzle_size)), f"Component {i}: {component}", component)
+        # plot_mapping(list(range(puzzle_size)), f"Component {i}: {component}", component)
         groups.append(component)
         group_reindex[i] = {k: j for j, k in enumerate(component)}
         # print(group_reindex[i])
@@ -295,11 +303,6 @@ def main():
         "-f",
         "--fast",
         help="skip validation of cube_19/19/19 and cube_33/33/33 puzzles",
-        action="store_true",
-    )
-    evaluate_parser.add_argument(
-        "-e",
-        "--export",
         action="store_true",
     )
     evaluate_parser.add_argument(

@@ -271,7 +271,6 @@ def eliminate_cube_rotations(solution: List[str], puzzle: Puzzle, debug=False):
     f rotations will replace r0 by rn and d0 by -dn
     r rotations will replace f0 by fn and d0 by -dn
     d rotations will replace f0 by -fn and r0 by rn
-
     """
     cube_size = int(puzzle.type.split("_")[1].split("/")[0])
     temp_solution = solution.copy()
