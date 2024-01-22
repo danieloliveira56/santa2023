@@ -5,16 +5,15 @@ import networkx as nx
 import numpy as np
 import sympy.combinatorics
 
-from santa2023.rotation import (eliminate_cube_rotations,
-                                eliminate_globe_rotations)
-
+from santa2023.cube_rotation import eliminate_cube_rotations
+from santa2023.globe_rotation import eliminate_globe_rotations
 from .genetic import genetic
 from .ida import ida
 from .identities import (ensemble, identities, shortcut, simple_wildcards,
                          test, wreath)
 from .puzzle import read_puzzle_info, read_puzzles
 from .utils import (CSV_BASE_PATH, PUZZLE_TYPES, export_solution, get_inverse,
-                    read_solution, sorted_solution)
+                    read_solution, clean_solution)
 
 
 def plot(args):
@@ -105,18 +104,13 @@ def evaluate(args):
         if puzzle._id not in solution:
             print(f"Puzzle {puzzle._id} not in solution file")
             continue
-        if puzzle.type.startswith("cube"):
-            for i in range(len(solution[puzzle._id]) - 1):
-                if solution[puzzle._id][i] == solution[puzzle._id][i + 1] and solution[
-                    puzzle._id
-                ][i].startswith("-"):
-                    solution[puzzle._id][i] = solution[puzzle._id][i][1:]
-                    solution[puzzle._id][i + 1] = solution[puzzle._id][i + 1][1:]
-            solution[puzzle._id] = sorted_solution(puzzle, solution[puzzle._id])
+        solution[puzzle._id] = clean_solution(puzzle, solution[puzzle._id])
 
         if (
-            puzzle.type.startswith("cube")
+            puzzle.type.startswith("dcube")
             and not args.fast
+            and puzzle._id != 283
+            and puzzle.type != "cube_33/33/33"
             and (cases is None or puzzle._id in cases)
         ):
             solution[puzzle._id] = eliminate_cube_rotations(
@@ -126,7 +120,6 @@ def evaluate(args):
         if (
             puzzle.type.startswith("globe")
             and not args.fast
-            and puzzle.type != "globe_8/25"
             and (cases is None or puzzle._id in cases)
         ):
             solution[puzzle._id] = eliminate_globe_rotations(

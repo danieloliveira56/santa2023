@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from typing import List
+import json
 
 PUZZLE_TYPES = [
     "cube_2/2/2",
@@ -34,6 +35,7 @@ PUZZLE_TYPES = [
 ]
 
 CSV_BASE_PATH = Path(__file__).parent.parent.parent / "data"
+CACHE_BASE_PATH = Path(__file__).parent.parent.parent / ".cache"
 
 
 def print_solution(solution, debug=False):
@@ -120,9 +122,34 @@ def move_idx(move):
     return int(move.replace("-", "")[1:])
 
 
+def cache_translation(fun):
+    cache_translation.cache_ = {}
+
+    def inner(puzzle_type, allowed_moves):
+        if puzzle_type in cache_translation.cache_:
+            return cache_translation.cache_[puzzle_type]
+
+        if not CACHE_BASE_PATH.exists():
+            CACHE_BASE_PATH.mkdir()
+        cache_path = CACHE_BASE_PATH / f"{puzzle_type.replace('/', '_')}_rotation_translation.json"
+        if cache_path.exists():
+            with open(cache_path, "r") as f:
+                cache_translation.cache_[puzzle_type] = json.load(f)
+        else:
+            translation = fun(
+                puzzle_type, allowed_moves
+            )
+            with open(cache_path, "w") as f:
+                json.dump(translation, f)
+            cache_translation.cache_[puzzle_type] = translation
+        return cache_translation.cache_[puzzle_type]
+
+    return inner
+
+
 def sorted_solution(puzzle, solution: List[str]):
     """
-    Sorts commutative moves in the solution of cube and wreath puzzles
+    Sorts commutative moves in a solution
     :param puzzle:
     :param solution: Sequence of moves for the puzzle
     :return:
@@ -164,7 +191,20 @@ def sorted_solution(puzzle, solution: List[str]):
     return new_solution
 
 
+def clean_solution(puzzle, solution):
+    if puzzle.type.startswith("cube"):
+        return clean_cube_solution(puzzle, solution)
+    elif puzzle.type.startswith("globe"):
+        return clean_globe_solution(puzzle, solution)
+    else:
+        return sorted_solution(puzzle, solution)
+
+
 def clean_cube_solution(puzzle, solution):
+    """
+    Removes trivially redundant moves from a cube solution
+    """
+
     solution = sorted_solution(
         puzzle,
         solution,
@@ -201,6 +241,9 @@ def clean_cube_solution(puzzle, solution):
 
 
 def clean_globe_solution(puzzle, solution):
+    """
+    Removes trivially redundant moves from a globe solution
+    """
     latitude_size = int(puzzle.type.split("_")[1].split("/")[0])
     longitude_size = int(puzzle.type.split("_")[1].split("/")[1])
 
