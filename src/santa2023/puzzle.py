@@ -2,7 +2,7 @@ import json
 from random import choices
 
 from santa2023.utils import get_inverse
-
+import Levenshtein
 
 def read_puzzles(filename):
     with open(filename, "r") as f:
@@ -219,6 +219,32 @@ class Puzzle:
     @property
     def count_mismatches(self):
         return sum([c1 != c2 for c1, c2 in zip(self._current, self._solution)])
+
+    @property
+    def levenshtein_distance(self):
+        return Levenshtein.distance("".join(self._current), "".join(self._solution))
+
+    @property
+    def levenshtein_ratio(self):
+        return Levenshtein.ratio("".join(self._current), "".join(self._solution))
+
+    # "quickmedian",
+    # "median",
+    # "median_improve",
+    # "setmedian",
+    # "setratio",
+    # "seqratio",
+    # "distance",
+    # "ratio",
+    # "hamming",
+    # "jaro",
+    # "jaro_winkler",
+    # "editops",
+    # "opcodes",
+    # "matching_blocks",
+    # "apply_edit",
+    # "subtract_edit",
+    # "inverse",
 
     @property
     def permutations(self):

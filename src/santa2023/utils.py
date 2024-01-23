@@ -4,6 +4,9 @@ from typing import List
 import json
 
 PUZZLE_TYPES = [
+    "all",
+    "cube",
+    "globe",
     "cube_2/2/2",
     "cube_3/3/3",
     "cube_4/4/4",
@@ -31,7 +34,6 @@ PUZZLE_TYPES = [
     "globe_3/33",
     "globe_33/3",
     "globe_8/25",
-    "all",
 ]
 
 CSV_BASE_PATH = Path(__file__).parent.parent.parent / "data"

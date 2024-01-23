@@ -16,6 +16,53 @@ from .utils import (CSV_BASE_PATH, PUZZLE_TYPES, export_solution, get_inverse,
                     read_solution, clean_solution)
 
 
+def rotate(args):
+    solution = read_solution(args.solution_file)
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
+    for puzzle in puzzles:
+        puzzle.initialize_move_list(puzzle_info[puzzle.type])
+
+    if args.puzzle_id is None and args.puzzle_type is None:
+        print("Must specify either --puzzle_id/-p or --puzzle_type/-t")
+        print("Available puzzle types:")
+        for p in PUZZLE_TYPES:
+            print(f"  '{p}'")
+        return
+
+    if args.puzzle_type is not None:
+        if args.puzzle_type not in PUZZLE_TYPES:
+            print(f"Invalid puzzle type {args.puzzle_type}")
+            return
+        elif args.puzzle_type.startswith("wreath"):
+            print("Wreath puzzles have no rotations")
+
+    for puzzle in puzzles:
+        if args.puzzle_id is not None and puzzle._id != args.puzzle_id:
+            continue
+
+        if args.puzzle_type is not None and args.puzzle_type != "all" and not puzzle.type.startswith(args.puzzle_type):
+            continue
+
+        if puzzle._id not in solution:
+            print(f"Puzzle {puzzle._id} ({puzzle.type}) not in solution file")
+            continue
+        solution[puzzle._id] = clean_solution(puzzle, solution[puzzle._id])
+
+        print(f"Rotating puzzle {puzzle._id} ({puzzle.type}) solution of length {len(solution[puzzle._id])}")
+
+        if puzzle.type.startswith("cube"):
+            solution[puzzle._id] = eliminate_cube_rotations(
+                solution[puzzle._id], puzzle, debug=args.debug
+            )
+        elif puzzle.type.startswith("globe"):
+            solution[puzzle._id] = eliminate_globe_rotations(
+                solution[puzzle._id], puzzle, debug=args.debug
+            )
+
+    export_solution(puzzles, solution)
+
+
 def plot(args):
     solution = read_solution(args.solution_file)
     puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
@@ -26,13 +73,16 @@ def plot(args):
     puzzle_to_plot = puzzles[args.puzzle_id]
     permutations = solution[puzzle_to_plot._id]
     mismatch_series = [puzzle_to_plot.count_mismatches]
+    levenshtein_distance_series = [puzzle_to_plot.count_mismatches]
     for perm in permutations:
         puzzle_to_plot.permutate(perm)
         mismatch_series.append(puzzle_to_plot.count_mismatches)
+        levenshtein_distance_series.append(puzzle_to_plot.levenshtein_distance)
 
     import matplotlib.pyplot as plt
 
     plt.scatter(range(len(mismatch_series)), mismatch_series)
+    plt.scatter(range(len(mismatch_series)), levenshtein_distance_series)
     plt.plot(
         [0, len(mismatch_series)],
         [puzzle_to_plot._num_wildcards] * 2,
@@ -104,27 +154,11 @@ def evaluate(args):
         if puzzle._id not in solution:
             print(f"Puzzle {puzzle._id} not in solution file")
             continue
-        solution[puzzle._id] = clean_solution(puzzle, solution[puzzle._id])
 
-        if (
-            puzzle.type.startswith("dcube")
-            and not args.fast
-            and puzzle._id != 283
-            and puzzle.type != "cube_33/33/33"
-            and (cases is None or puzzle._id in cases)
-        ):
-            solution[puzzle._id] = eliminate_cube_rotations(
-                solution[puzzle._id], puzzle, debug=args.debug
-            )
-
-        if (
-            puzzle.type.startswith("globe")
-            and not args.fast
-            and (cases is None or puzzle._id in cases)
-        ):
-            solution[puzzle._id] = eliminate_globe_rotations(
-                solution[puzzle._id], puzzle, debug=args.debug
-            )
+        new_solution = clean_solution(puzzle, solution[puzzle._id])
+        if len(new_solution) < len(solution[puzzle._id]):
+            print(f"Puzzle {puzzle._id} has trivial improvement ({len(solution[puzzle._id])})->({len(new_solution)})")
+            solution[puzzle._id] = new_solution
 
         print(
             f"{puzzle._id}\t"
@@ -378,6 +412,9 @@ def main():
     test_parser = subparsers.add_parser("test")
     test_parser.add_argument("initial_solution_file")
     test_parser.add_argument("-p", "--puzzle_id", type=int, required=True)
+    test_parser.add_argument(
+        "-d", "--debug", help="print debugging information", action="store_true"
+    )
     test_parser.set_defaults(func=test)
 
     graph_parser = subparsers.add_parser("graph")
@@ -386,6 +423,15 @@ def main():
 
     graph_parser = subparsers.add_parser("wreath")
     graph_parser.set_defaults(func=wreath)
+
+    rotate_parser = subparsers.add_parser("rotate")
+    rotate_parser.add_argument("solution_file")
+    rotate_parser.add_argument("-p", "--puzzle_id", type=int)
+    rotate_parser.add_argument("-t", "--puzzle_type")
+    rotate_parser.add_argument(
+        "-d", "--debug", help="print debugging information", action="store_true"
+    )
+    rotate_parser.set_defaults(func=rotate)
 
     args = parser.parse_args()
     args.func(args)

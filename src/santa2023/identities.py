@@ -11,6 +11,10 @@ from santa2023.puzzle import (Permutation, WreathPuzzle, read_puzzle_info,
 from santa2023.utils import (CSV_BASE_PATH, PUZZLE_TYPES, calculate_score,
                              export_solution, get_inverse, read_solution)
 
+def debug_list(l, start, end):
+    print(".".join(l[start:end]))
+    print(" ".join([f"{i:{len(str(l[i]))}d}" for i in range(start, end)]))
+
 
 def get_identities(puzzle_info, depth):
     func_start = time.time()
@@ -86,6 +90,8 @@ def get_fast_identities(puzzle_info, depth, max_time=None):
         print(f"len(base_permutations): {len(base_permutations)}")
         new_permutations = [
             p1 * p2 for p1 in added_permutations for p2 in base_permutations
+        ] + [
+            p1 * p2 * ~p1 * ~p2 for p1 in added_permutations for p2 in base_permutations
         ]
         print(
             f"Mapping depth={level}/{depth}: {len(new_permutations):0,} new permutations computed in {time.time() - start:.2f}s"
@@ -251,11 +257,8 @@ def test(args):
         for j in range(i + 1, len(permutations)):
             if permutations[i] == ~permutations[j]:
                 print(f"Permutation {keys[i]},{keys[j]} are inverses")
-    exit()
 
-    for puzzle in puzzles:
-        if puzzle._id < 240:
-            continue
+    for puzzle in puzzles[284:]:
         print(f"Searching puzzle {puzzle._id} ({puzzle.type})")
         puzzle_type = puzzle.type
         permutations = {
@@ -272,102 +275,87 @@ def test(args):
             has_commute = False
             i = 0
             while i < len(solution[puzzle._id]) - 1:
-                print(f"Searching commutative {i}/{len(solution[puzzle._id])}")
+                print(f"Searching commutative {i}/{len(solution[puzzle._id])}: {solution[puzzle._id][i]}", end="\r")
                 if i >= len(solution[puzzle._id]):
                     print(
                         f"i={i} >= len(solution[puzzle._id])={len(solution[puzzle._id])}"
                     )
                     break
-                p1 = permutations[solution[puzzle._id][i]]
+                i_move_id = solution[puzzle._id][i]
+                p1 = permutations[i_move_id]
                 j = i + 1
                 p_range = sympy.combinatorics.Permutation(list(range(p1.size)))
                 assert p_range.is_Identity
-                print(p_range)
-                print("p_range=[", end="")
-                while j < len(solution[puzzle._id]):
+                if args.debug:
+                    print(p_range)
+                    print("p_range=[", end="")
+                while j < len(solution[puzzle._id]) and solution[puzzle._id][i] == i_move_id:
                     while (
                         j < len(solution[puzzle._id])
-                        and p1 != ~permutations[solution[puzzle._id][j]]
+                        and (p1 != ~permutations[solution[puzzle._id][j]] or not p1.commutes_with(p_range))
                     ):
-                        print(solution[puzzle._id][j], end="*")
+                        if args.debug:
+                            print(solution[puzzle._id][j], end="*")
                         p_range *= permutations[solution[puzzle._id][j]]
                         j += 1
 
                     if j == len(solution[puzzle._id]):
                         continue
 
-                    print("testing j=" + str(j))
-                    if p1.commutes_with(p_range):
-                        print(
-                            f"Found commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}],",
-                            end="",
-                        )
+                    print(
+                        f"Found commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}]",
+                    )
+
+                    if args.debug:
                         print()
                         print(
                             solution[puzzle._id][i],
                             solution[puzzle._id][j],
                             len(solution[puzzle._id]),
                         )
-                        print(solution[puzzle._id][i - 10 : j + 10])
-                        print(solution[puzzle._id][i - 10 : i])
-                        print(solution[puzzle._id][i + 1 : j])
-                        print(solution[puzzle._id][j + 1 : j + 10])
+                        debug_list(solution[puzzle._id], i-10, j+10)
+                        debug_list(solution[puzzle._id], i - 10, i)
+                        debug_list(solution[puzzle._id], i + 1, j)
+                        debug_list(solution[puzzle._id], j + 1, j + 10)
 
-                        p_range_check = permutations[solution[puzzle._id][i + 1]]
-                        for k in range(i + 2, j):
-                            p_range_check *= permutations[solution[puzzle._id][k]]
-                        assert p_range_check == p_range
-                        assert (
-                            permutations[solution[puzzle._id][i]]
-                            == ~permutations[solution[puzzle._id][j]]
-                        )
+                    # p_range_check = permutations[solution[puzzle._id][i + 1]]
+                    # for k in range(i + 2, j+1):
+                    #     p_range_check *= permutations[solution[puzzle._id][k]]
+                    # assert p_range_check == p_range, f"\n{p_range_check.array_form} != {p_range.array_form}"
+                    # assert (
+                    #     permutations[solution[puzzle._id][i]]
+                    #     == ~permutations[solution[puzzle._id][j]]
+                    # )
 
-                        assert (
-                            puzzle.clone()
-                            .full_permutation(solution[puzzle._id])
-                            .is_solved
-                        ), "not solved to start with"
+                    assert (
+                        puzzle.clone()
+                        .full_permutation(solution[puzzle._id])
+                        .is_solved
+                    ), "not solved to start with"
 
-                        new_sol = (
-                            solution[puzzle._id][:i]
-                            + solution[puzzle._id][i + 1 : j]
-                            + solution[puzzle._id][j + 1 :]
-                        )
+                    new_sol = (
+                        solution[puzzle._id][:i]
+                        + solution[puzzle._id][i + 1 : j]
+                        + solution[puzzle._id][j + 1 :]
+                    )
+
+                    if (
+                        puzzle.clone()
+                        .full_permutation(new_sol)
+                        .is_solved
+                    ):
                         solution[puzzle._id] = new_sol
-                        print(solution[puzzle._id][i - 10 : j + 10])
-                        print(f" new size: {len(solution[puzzle._id])}")
-                        assert (
-                            puzzle.clone()
-                            .full_permutation(solution[puzzle._id])
-                            .is_solved
-                        )
+                        if args.debug:
+                            print(solution[puzzle._id][i - 10: j + 10])
+                        print(f"  Successfully commuted, new size: {len(solution[puzzle._id])}")
+                        export_solution(puzzles, solution)
                         has_commute = True
-                        exit()
-                        break
                     else:
-                        print("not")
-                        print(solution[puzzle._id][j], end="*")
+                        print("  Commute invalidates solution, why???")
                         p_range *= permutations[solution[puzzle._id][j]]
                         j += 1
-                print()
-                if i % 100 == 0 and len(solution[puzzle._id]) < current_length:
-                    export_solution(puzzles, solution)
-                    current_length = len(solution[puzzle._id])
                 i += 1
 
-        if len(solution[puzzle._id]) < initial_length:
-            export_solution(puzzles, solution)
-
-        # move_id2 = solution[puzzle._id][i + 1]
-        # move_id3 = solution[puzzle._id][i + 2]
-        # move_id4 = solution[puzzle._id][i + 3]
-        # if permutations[move_id2] * permutations[move_id3] * permutations[move_id4] == permutations[move_id4] * permutations[move_id2] * permutations[move_id3] and permutations[move_id4] == ~permutations[move_id2]:
-        #     print(f"{i}: {move_id1}.{move_id2}, {move_id3} are commutative", end=" ")
-        #     if last_i == i - 1:
-        #         print("and adjacent", end=" ")
-        #     print(".".join(solution[puzzle._id][i-1:i+4]))
-        #
-        #     last_i = i
     exit()
 
     print(f"Puzzle type '{puzzle_type}' permutations:")
@@ -421,20 +409,20 @@ def fast_identities(args):
     }
     a = list(list(all_shortest_permutations.values())[0].keys())
     a = sorted(a, key=lambda x: sum([-1 if i != j else 0 for i, j in enumerate(x)]))
-    for m in a:
-        print(m, sum([1 if i != j else 0 for i, j in enumerate(m)]))
-    exit()
+    # for m in a:
+    #     print(m, sum([1 if i != j else 0 for i, j in enumerate(m)]))
+    # exit()
 
-    new_solution = []
+    new_solution = {}
     try:
-        for permutation, puzzle in zip(solution, puzzles):
+        for puzzle in puzzles:
             if puzzle.type not in puzzle_types:
-                new_solution.append(permutation)
+                new_solution[puzzle._id] = solution[puzzle._id]
                 continue
 
             permutations = [
                 Permutation(all_puzzle_info[puzzle.type][move_id], move_id)
-                for move_id in permutation
+                for move_id in solution[puzzle._id]
             ]
             shortest_permutations = all_shortest_permutations[puzzle.type]
             initial_len = len(permutations)
@@ -478,14 +466,12 @@ def fast_identities(args):
             permutations_list = []
             for p in permutations:
                 permutations_list += p.move_ids
-            new_solution.append(permutations_list)
-
+            solution[puzzle._id] = permutations_list
     except KeyboardInterrupt:
-        new_solution = new_solution + solution[len(new_solution) :]
         pass
     except Exception as e:
         raise e
-    export_solution(puzzles, new_solution)
+    export_solution(puzzles, solution)
 
 
 def argmax(x: Iterable, key):
