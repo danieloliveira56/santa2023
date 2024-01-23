@@ -1,7 +1,7 @@
+import json
 import os
 from pathlib import Path
 from typing import List
-import json
 
 PUZZLE_TYPES = [
     "all",
@@ -133,14 +133,15 @@ def cache_translation(fun):
 
         if not CACHE_BASE_PATH.exists():
             CACHE_BASE_PATH.mkdir()
-        cache_path = CACHE_BASE_PATH / f"{puzzle_type.replace('/', '_')}_rotation_translation.json"
+        cache_path = (
+            CACHE_BASE_PATH
+            / f"{puzzle_type.replace('/', '_')}_rotation_translation.json"
+        )
         if cache_path.exists():
             with open(cache_path, "r") as f:
                 cache_translation.cache_[puzzle_type] = json.load(f)
         else:
-            translation = fun(
-                puzzle_type, allowed_moves
-            )
+            translation = fun(puzzle_type, allowed_moves)
             with open(cache_path, "w") as f:
                 json.dump(translation, f)
             cache_translation.cache_[puzzle_type] = translation
@@ -191,6 +192,11 @@ def sorted_solution(puzzle, solution: List[str]):
             current_group = [move]
     new_solution += sorted(current_group, key=sorting_key)
     return new_solution
+
+
+def debug_list(l, start, end):
+    print(".".join(l[start:end]))
+    print(" ".join([f"{i:{len(str(l[i]))}d}" for i in range(start, end)]))
 
 
 def clean_solution(puzzle, solution):

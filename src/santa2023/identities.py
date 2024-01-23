@@ -11,10 +11,6 @@ from santa2023.puzzle import (Permutation, WreathPuzzle, read_puzzle_info,
 from santa2023.utils import (CSV_BASE_PATH, PUZZLE_TYPES, calculate_score,
                              export_solution, get_inverse, read_solution)
 
-def debug_list(l, start, end):
-    print(".".join(l[start:end]))
-    print(" ".join([f"{i:{len(str(l[i]))}d}" for i in range(start, end)]))
-
 
 def get_identities(puzzle_info, depth):
     func_start = time.time()
@@ -257,106 +253,6 @@ def test(args):
         for j in range(i + 1, len(permutations)):
             if permutations[i] == ~permutations[j]:
                 print(f"Permutation {keys[i]},{keys[j]} are inverses")
-
-    for puzzle in puzzles[284:]:
-        print(f"Searching puzzle {puzzle._id} ({puzzle.type})")
-        puzzle_type = puzzle.type
-        permutations = {
-            move_id: sympy.combinatorics.Permutation(p)
-            for move_id, p in all_puzzle_info[puzzle_type].items()
-        }
-        for move_id, p in all_puzzle_info[puzzle_type].items():
-            permutations[f"-{move_id}"] = ~sympy.combinatorics.Permutation(p)
-
-        initial_length = len(solution[puzzle._id])
-        current_length = initial_length
-        has_commute = True
-        while has_commute:
-            has_commute = False
-            i = 0
-            while i < len(solution[puzzle._id]) - 1:
-                print(f"Searching commutative {i}/{len(solution[puzzle._id])}: {solution[puzzle._id][i]}", end="\r")
-                if i >= len(solution[puzzle._id]):
-                    print(
-                        f"i={i} >= len(solution[puzzle._id])={len(solution[puzzle._id])}"
-                    )
-                    break
-                i_move_id = solution[puzzle._id][i]
-                p1 = permutations[i_move_id]
-                j = i + 1
-                p_range = sympy.combinatorics.Permutation(list(range(p1.size)))
-                assert p_range.is_Identity
-                if args.debug:
-                    print(p_range)
-                    print("p_range=[", end="")
-                while j < len(solution[puzzle._id]) and solution[puzzle._id][i] == i_move_id:
-                    while (
-                        j < len(solution[puzzle._id])
-                        and (p1 != ~permutations[solution[puzzle._id][j]] or not p1.commutes_with(p_range))
-                    ):
-                        if args.debug:
-                            print(solution[puzzle._id][j], end="*")
-                        p_range *= permutations[solution[puzzle._id][j]]
-                        j += 1
-
-                    if j == len(solution[puzzle._id]):
-                        continue
-
-                    print(
-                        f"Found commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}]",
-                    )
-
-                    if args.debug:
-                        print()
-                        print(
-                            solution[puzzle._id][i],
-                            solution[puzzle._id][j],
-                            len(solution[puzzle._id]),
-                        )
-                        debug_list(solution[puzzle._id], i-10, j+10)
-                        debug_list(solution[puzzle._id], i - 10, i)
-                        debug_list(solution[puzzle._id], i + 1, j)
-                        debug_list(solution[puzzle._id], j + 1, j + 10)
-
-                    # p_range_check = permutations[solution[puzzle._id][i + 1]]
-                    # for k in range(i + 2, j+1):
-                    #     p_range_check *= permutations[solution[puzzle._id][k]]
-                    # assert p_range_check == p_range, f"\n{p_range_check.array_form} != {p_range.array_form}"
-                    # assert (
-                    #     permutations[solution[puzzle._id][i]]
-                    #     == ~permutations[solution[puzzle._id][j]]
-                    # )
-
-                    assert (
-                        puzzle.clone()
-                        .full_permutation(solution[puzzle._id])
-                        .is_solved
-                    ), "not solved to start with"
-
-                    new_sol = (
-                        solution[puzzle._id][:i]
-                        + solution[puzzle._id][i + 1 : j]
-                        + solution[puzzle._id][j + 1 :]
-                    )
-
-                    if (
-                        puzzle.clone()
-                        .full_permutation(new_sol)
-                        .is_solved
-                    ):
-                        solution[puzzle._id] = new_sol
-                        if args.debug:
-                            print(solution[puzzle._id][i - 10: j + 10])
-                        print(f"  Successfully commuted, new size: {len(solution[puzzle._id])}")
-                        export_solution(puzzles, solution)
-                        has_commute = True
-                    else:
-                        print("  Commute invalidates solution, why???")
-                        p_range *= permutations[solution[puzzle._id][j]]
-                        j += 1
-                i += 1
-
-    exit()
 
     print(f"Puzzle type '{puzzle_type}' permutations:")
     for i, p in enumerate(permutations):

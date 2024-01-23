@@ -1,8 +1,10 @@
 import json
 from random import choices
 
-from santa2023.utils import get_inverse
 import Levenshtein
+
+from santa2023.utils import get_inverse
+
 
 def read_puzzles(filename):
     with open(filename, "r") as f:

@@ -7,13 +7,14 @@ import sympy.combinatorics
 
 from santa2023.cube_rotation import eliminate_cube_rotations
 from santa2023.globe_rotation import eliminate_globe_rotations
+
 from .genetic import genetic
 from .ida import ida
 from .identities import (ensemble, identities, shortcut, simple_wildcards,
                          test, wreath)
 from .puzzle import read_puzzle_info, read_puzzles
-from .utils import (CSV_BASE_PATH, PUZZLE_TYPES, export_solution, get_inverse,
-                    read_solution, clean_solution)
+from .utils import (CSV_BASE_PATH, PUZZLE_TYPES, clean_solution, debug_list,
+                    export_solution, get_inverse, read_solution)
 
 
 def rotate(args):
@@ -41,7 +42,11 @@ def rotate(args):
         if args.puzzle_id is not None and puzzle._id != args.puzzle_id:
             continue
 
-        if args.puzzle_type is not None and args.puzzle_type != "all" and not puzzle.type.startswith(args.puzzle_type):
+        if (
+            args.puzzle_type is not None
+            and args.puzzle_type != "all"
+            and not puzzle.type.startswith(args.puzzle_type)
+        ):
             continue
 
         if puzzle._id not in solution:
@@ -49,7 +54,9 @@ def rotate(args):
             continue
         solution[puzzle._id] = clean_solution(puzzle, solution[puzzle._id])
 
-        print(f"Rotating puzzle {puzzle._id} ({puzzle.type}) solution of length {len(solution[puzzle._id])}")
+        print(
+            f"Rotating puzzle {puzzle._id} ({puzzle.type}) solution of length {len(solution[puzzle._id])}"
+        )
 
         if puzzle.type.startswith("cube"):
             solution[puzzle._id] = eliminate_cube_rotations(
@@ -157,7 +164,9 @@ def evaluate(args):
 
         new_solution = clean_solution(puzzle, solution[puzzle._id])
         if len(new_solution) < len(solution[puzzle._id]):
-            print(f"Puzzle {puzzle._id} has trivial improvement ({len(solution[puzzle._id])})->({len(new_solution)})")
+            print(
+                f"Puzzle {puzzle._id} has trivial improvement ({len(solution[puzzle._id])})->({len(new_solution)})"
+            )
             solution[puzzle._id] = new_solution
 
         print(
@@ -244,8 +253,11 @@ def plot_mapping(move_mapping, title, positions_to_plot=None, show_numbers=True)
     plt.show()
     # ax.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
 
+
 def row_idx(i, cube_size):
     return i // cube_size
+
+
 def study_graph(args):
     all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
     allowed_moves = all_puzzle_info[args.puzzle_type]
@@ -273,7 +285,11 @@ def study_graph(args):
     group_reindex = {}
     # group_cost_database = {}
 
-    connected_components = sorted([sorted(list(x)) for x in connected_components], key=lambda x: row_idx(min(x), cube_size), reverse=True)
+    connected_components = sorted(
+        [sorted(list(x)) for x in connected_components],
+        key=lambda x: row_idx(min(x), cube_size),
+        reverse=True,
+    )
 
     print(f"f_component = std::vector<std::vector<int>>({len(connected_components)});")
     for i, component in enumerate(connected_components):
@@ -310,6 +326,104 @@ def study_graph(args):
     #         group_solution = [group_reindex[i][j] for j in solution[puzzle._id]]
     #         print(f"Group {i}: {group_solution}")
     #         print(f"Cost: {group_cost_database[i][group_solution]}")
+
+
+def commute(args):
+    solution = read_solution(filename=args.initial_solution_file)
+    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
+    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
+    for p in puzzles:
+        p.initialize_move_list(all_puzzle_info[p.type])
+
+    for puzzle in puzzles:
+        print(f"Searching puzzle {puzzle._id} ({puzzle.type})")
+        permutations = {
+            move_id: sympy.combinatorics.Permutation(p)
+            for move_id, p in all_puzzle_info[puzzle.type].items()
+        }
+        for move_id, p in all_puzzle_info[puzzle.type].items():
+            permutations[f"-{move_id}"] = ~sympy.combinatorics.Permutation(p)
+
+        has_commute = True
+        while has_commute:
+            has_commute = False
+            i = 0
+            while i < len(solution[puzzle._id]) - 1:
+                print(
+                    f"Searching commutative {i}/{len(solution[puzzle._id])}: {solution[puzzle._id][i]}",
+                    end="\r",
+                )
+                i_move_id = solution[puzzle._id][i]
+                p1 = permutations[i_move_id]
+                j = i + 1
+                p_range = sympy.combinatorics.Permutation(list(range(p1.size)))
+                assert p_range.is_Identity
+                if args.debug:
+                    print(p_range)
+                    print("p_range=[", end="")
+                while (
+                    j < len(solution[puzzle._id])
+                    and solution[puzzle._id][i] == i_move_id
+                ):
+                    while j < len(solution[puzzle._id]) and (
+                        p1 != ~permutations[solution[puzzle._id][j]]
+                        or not p1.commutes_with(p_range)
+                    ):
+                        if args.debug:
+                            print(solution[puzzle._id][j], end="*")
+                        p_range *= permutations[solution[puzzle._id][j]]
+                        j += 1
+
+                    if j == len(solution[puzzle._id]):
+                        continue
+
+                    print(
+                        f"Puzzle {puzzle._id} has commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}]",
+                    )
+                    j_move_id = solution[puzzle._id][j]
+
+                    if args.debug:
+                        print()
+                        debug_list(solution[puzzle._id], i - 10, j + 10)
+                        debug_list(solution[puzzle._id], i - 10, i)
+                        debug_list(solution[puzzle._id], i + 1, j)
+                        debug_list(solution[puzzle._id], j + 1, j + 10)
+
+                    # p_range_check = permutations[solution[puzzle._id][i + 1]]
+                    # for k in range(i + 2, j+1):
+                    #     p_range_check *= permutations[solution[puzzle._id][k]]
+                    # assert p_range_check == p_range, f"\n{p_range_check.array_form} != {p_range.array_form}"
+                    # assert (
+                    #     permutations[solution[puzzle._id][i]]
+                    #     == ~permutations[solution[puzzle._id][j]]
+                    # )
+
+                    assert (
+                        puzzle.clone().full_permutation(solution[puzzle._id]).is_solved
+                    ), "not solved to start with"
+
+                    new_sol = (
+                        solution[puzzle._id][:i]
+                        + solution[puzzle._id][i + 1 : j]
+                        + solution[puzzle._id][j + 1 :]
+                    )
+
+                    if puzzle.clone().full_permutation(new_sol).is_solved:
+                        solution[puzzle._id] = new_sol
+                        if args.debug:
+                            print(solution[puzzle._id][i - 10 : j + 10])
+                        print(
+                            f"  Successfully commuted, new size: {len(solution[puzzle._id])}"
+                        )
+                        export_solution(puzzles, solution)
+                        has_commute = True
+                    else:
+                        print(
+                            f"  Commuting and removing ({i_move_id}.{j_move_id}) invalidates solution, why???"
+                        )
+                        p_range *= permutations[solution[puzzle._id][j]]
+                        j += 1
+                i += 1
 
 
 def main():
@@ -432,6 +546,13 @@ def main():
         "-d", "--debug", help="print debugging information", action="store_true"
     )
     rotate_parser.set_defaults(func=rotate)
+
+    commute_parser = subparsers.add_parser("commute")
+    commute_parser.add_argument("initial_solution_file")
+    commute_parser.add_argument(
+        "-d", "--debug", help="print debugging information", action="store_true"
+    )
+    commute_parser.set_defaults(func=commute)
 
     args = parser.parse_args()
     args.func(args)
