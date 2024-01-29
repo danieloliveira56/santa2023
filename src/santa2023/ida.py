@@ -1,8 +1,8 @@
 import time
 
+from santa2023.data import PUZZLE_INFO, PUZZLES
 from santa2023.pricer import SolutionPricer
-from santa2023.puzzle import Permutation, read_puzzle_info, read_puzzles
-from santa2023.utils import CSV_BASE_PATH
+from santa2023.puzzle import Permutation
 
 
 def search(puzzle, allowed_moves, pricer, bound):
@@ -30,15 +30,11 @@ def search(puzzle, allowed_moves, pricer, bound):
 
 def ida(args):
     print("Running IDA*")
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(all_puzzle_info[p.type])
 
-    puzzle = puzzles[args.puzzle_id]
+    puzzle = PUZZLES[args.puzzle_id]
     allowed_moves = {
         key: Permutation(value, [key])
-        for key, value in all_puzzle_info[puzzle.type].items()
+        for key, value in PUZZLE_INFO[puzzle.type].items()
     }
 
     pricer = SolutionPricer(

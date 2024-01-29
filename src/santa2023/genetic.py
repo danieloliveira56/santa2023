@@ -1,8 +1,6 @@
 from random import choice, randrange, sample
 
-from santa2023.puzzle import read_puzzle_info, read_puzzles
-from santa2023.utils import (CSV_BASE_PATH, export_solution, read_solution,
-                             remove_identity)
+from santa2023.utils import export_solution, read_solution, remove_identity
 
 
 def crossover(permutations1, permutations2):
@@ -51,10 +49,6 @@ def mutate(permutation, allowed_move_ids):
 
 def genetic(args):
     initial_solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(puzzle_info[p.type])
 
     num_iterations = args.num_iterations
     size_population = args.size_population
@@ -76,7 +70,7 @@ def genetic(args):
 
     new_solution = []
     try:
-        for puzzle_idx, p in enumerate(puzzles):
+        for puzzle_idx, p in enumerate(PUZZLES):
             print(puzzle_idx, end="\r")
             initial_permutation = initial_solution[puzzle_idx]
             if cases and p._id not in cases:
@@ -109,7 +103,7 @@ def genetic(args):
                 )
 
                 print(
-                    f"Searching {puzzle_idx}/{len(puzzles)} ({p._type}), "
+                    f"Searching {puzzle_idx}/{len(PUZZLES)} ({p._type}), "
                     f"End of iteration {i + 1}/{num_iterations}, "
                     f"Pool size: {len(pool)} "
                     f"Score: {len(initial_permutation)}->{pool[0].score}",
@@ -125,4 +119,4 @@ def genetic(args):
         raise e
 
     print(solution_score)
-    export_solution(puzzles, new_solution)
+    export_solution(PUZZLES, new_solution)

@@ -5,29 +5,28 @@ import networkx as nx
 import numpy as np
 import sympy.combinatorics
 
+from santa2023.puzzle import Permutation
 from santa2023.cube_rotation import eliminate_cube_rotations
+from santa2023.data import PUZZLE_INFO, PUZZLES
 from santa2023.globe_rotation import eliminate_globe_rotations
 
 from .genetic import genetic
 from .ida import ida
 from .identities import (ensemble, identities, shortcut, simple_wildcards,
-                         test, wreath)
-from .puzzle import read_puzzle_info, read_puzzles
-from .utils import (CSV_BASE_PATH, PUZZLE_TYPES, clean_solution, debug_list,
-                    export_solution, get_inverse, read_solution)
+                         stitch, test, wreath)
+from .utils import (PUZZLE_TYPES, clean_solution, debug_list, export_solution,
+                    get_inverse, read_solution, move_letter)
 
 
 def rotate(args):
     solution = read_solution(args.solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for puzzle in puzzles:
-        puzzle.initialize_move_list(puzzle_info[puzzle.type])
 
     if args.puzzle_id is None and args.puzzle_type is None:
         print("Must specify either --puzzle_id/-p or --puzzle_type/-t")
         print("Available puzzle types:")
         for p in PUZZLE_TYPES:
+            if p.startswith("wreath"):
+                continue
             print(f"  '{p}'")
         return
 
@@ -38,7 +37,7 @@ def rotate(args):
         elif args.puzzle_type.startswith("wreath"):
             print("Wreath puzzles have no rotations")
 
-    for puzzle in puzzles:
+    for puzzle in PUZZLES:
         if args.puzzle_id is not None and puzzle._id != args.puzzle_id:
             continue
 
@@ -67,17 +66,13 @@ def rotate(args):
                 solution[puzzle._id], puzzle, debug=args.debug
             )
 
-    export_solution(puzzles, solution)
+    export_solution(PUZZLES, solution)
 
 
 def plot(args):
     solution = read_solution(args.solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(puzzle_info[p.type])
 
-    puzzle_to_plot = puzzles[args.puzzle_id]
+    puzzle_to_plot = PUZZLES[args.puzzle_id]
     permutations = solution[puzzle_to_plot._id]
     mismatch_series = [puzzle_to_plot.count_mismatches]
     levenshtein_distance_series = [puzzle_to_plot.count_mismatches]
@@ -137,14 +132,7 @@ def diff_solutions(sol1, sol2):
 def evaluate(args):
     total = 0
     solution = read_solution(args.solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(puzzle_info[p.type])
 
-    cases = None
-    if args.puzzles:
-        cases = args.puzzles[0]
     print("Evaluating " + args.solution_file)
     print(
         "Puzzle\t"
@@ -157,7 +145,7 @@ def evaluate(args):
         "initial_mismatches/sol_length\t"
         "final_mismatches"
     )
-    for puzzle in puzzles:
+    for puzzle in PUZZLES:
         if puzzle._id not in solution:
             print(f"Puzzle {puzzle._id} not in solution file")
             continue
@@ -167,7 +155,7 @@ def evaluate(args):
             print(
                 f"Puzzle {puzzle._id} has trivial improvement ({len(solution[puzzle._id])})->({len(new_solution)})"
             )
-            solution[puzzle._id] = new_solution
+        solution[puzzle._id] = new_solution
 
         print(
             f"{puzzle._id}\t"
@@ -193,7 +181,7 @@ def evaluate(args):
 
     print(f"Solution value: {total}")
 
-    export_solution(puzzles, solution)
+    export_solution(PUZZLES, solution)
 
 
 colors = ["lightgrey", "green", "red", "blue", "orange", "yellow"]
@@ -259,8 +247,7 @@ def row_idx(i, cube_size):
 
 
 def study_graph(args):
-    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    allowed_moves = all_puzzle_info[args.puzzle_type]
+    allowed_moves = PUZZLE_INFO[args.puzzle_type]
     puzzle_size = len(list(allowed_moves.values())[0])
     cube_size = int(args.puzzle_type.split("/")[1])
 
@@ -330,19 +317,42 @@ def study_graph(args):
 
 def commute(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(all_puzzle_info[p.type])
 
-    for puzzle in puzzles:
-        print(f"Searching puzzle {puzzle._id} ({puzzle.type})")
+    if args.puzzle_id is None and args.puzzle_type is None:
+        print("Must specify either --puzzle_id/-p or --puzzle_type/-t")
+        print("Available puzzle types:")
+        for p in PUZZLE_TYPES:
+            print(f"  '{p}'")
+        return
+
+    if args.puzzle_type is not None:
+        if args.puzzle_type not in PUZZLE_TYPES:
+            print(f"Invalid puzzle type {args.puzzle_type}")
+            return
+
+    for puzzle in PUZZLES:
+        if args.puzzle_id is not None and puzzle._id != args.puzzle_id:
+            continue
+
+        if (
+            args.puzzle_type is not None
+            and args.puzzle_type != "all"
+            and not puzzle.type.startswith(args.puzzle_type)
+        ):
+            continue
+
+        print(
+            f"Searching puzzle {puzzle._id} ({puzzle.type})                               "
+        )
         permutations = {
-            move_id: sympy.combinatorics.Permutation(p)
-            for move_id, p in all_puzzle_info[puzzle.type].items()
+            move_id: Permutation(p)
+            for move_id, p in PUZZLE_INFO[puzzle.type].items()
         }
-        for move_id, p in all_puzzle_info[puzzle.type].items():
-            permutations[f"-{move_id}"] = ~sympy.combinatorics.Permutation(p)
+        # print(permutations)
+        for move_id, p in PUZZLE_INFO[puzzle.type].items():
+            permutations[f"-{move_id}"] = ~permutations[move_id]
+        # print()
+        # print(permutations)
 
         has_commute = True
         while has_commute:
@@ -350,35 +360,46 @@ def commute(args):
             i = 0
             while i < len(solution[puzzle._id]) - 1:
                 print(
-                    f"Searching commutative {i}/{len(solution[puzzle._id])}: {solution[puzzle._id][i]}",
+                    f"Searching commutative {i}/{len(solution[puzzle._id])}: {solution[puzzle._id][i]}        ",
                     end="\r",
                 )
                 i_move_id = solution[puzzle._id][i]
                 p1 = permutations[i_move_id]
                 j = i + 1
-                p_range = sympy.combinatorics.Permutation(list(range(p1.size)))
+                p_range = Permutation(list(range(p1.size)))
+                # print("prangeidenti", p_range.array_form)
                 assert p_range.is_Identity
+
                 if args.debug:
                     print(p_range)
-                    print("p_range=[", end="")
+                    print("p_range=", end="")
                 while (
-                    j < len(solution[puzzle._id])
+                    j < min(i+100, len(solution[puzzle._id]))
                     and solution[puzzle._id][i] == i_move_id
                 ):
+                    skip = True
                     while j < len(solution[puzzle._id]) and (
-                        p1 != ~permutations[solution[puzzle._id][j]]
+                        # p1 != ~permutations[solution[puzzle._id][j]]
+                        skip
+                        or move_letter(i_move_id) != move_letter(solution[puzzle._id][j])
                         or not p1.commutes_with(p_range)
                     ):
                         if args.debug:
-                            print(solution[puzzle._id][j], end="*")
+                            print(solution[puzzle._id][j], end=".")
                         p_range *= permutations[solution[puzzle._id][j]]
+                        if move_letter(solution[puzzle._id][j]) != move_letter(i_move_id):
+                            skip = False
+                        # print(solution[puzzle._id][j], permutations[solution[puzzle._id][j]])
                         j += 1
+
+                    # print(f"\np_range={p_range.array_form}")
 
                     if j == len(solution[puzzle._id]):
                         continue
-
+                    if args.debug:
+                        print()
                     print(
-                        f"Puzzle {puzzle._id} has commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}, {j}]",
+                        f"Puzzle {puzzle._id} ({puzzle.type}) has commutative {solution[puzzle._id][i]}...{solution[puzzle._id][j]} sequence [{i}:{j}]",
                     )
                     j_move_id = solution[puzzle._id][j]
 
@@ -405,22 +426,32 @@ def commute(args):
                     new_sol = (
                         solution[puzzle._id][:i]
                         + solution[puzzle._id][i + 1 : j]
-                        + solution[puzzle._id][j + 1 :]
+                        + solution[puzzle._id][i : i + 1]
+                        + solution[puzzle._id][j :]
                     )
+                    # new_sol = (
+                    #     solution[puzzle._id][:i]
+                    #     + solution[puzzle._id][i + 1 : j]
+                    #     + solution[puzzle._id][j + 1 :]
+                    # )
 
                     if puzzle.clone().full_permutation(new_sol).is_solved:
-                        solution[puzzle._id] = new_sol
+                        solution[puzzle._id] = clean_solution(puzzle, new_sol)
                         if args.debug:
                             print(solution[puzzle._id][i - 10 : j + 10])
                         print(
                             f"  Successfully commuted, new size: {len(solution[puzzle._id])}"
                         )
-                        export_solution(puzzles, solution)
+                        export_solution(PUZZLES, solution)
                         has_commute = True
                     else:
                         print(
                             f"  Commuting and removing ({i_move_id}.{j_move_id}) invalidates solution, why???"
                         )
+                        print(solution[puzzle._id])
+                        print(new_sol)
+                        print(p_range)
+                        exit()
                         p_range *= permutations[solution[puzzle._id][j]]
                         j += 1
                 i += 1
@@ -437,9 +468,6 @@ def main():
         "evaluate", aliases=["eval"], description="Evaluate a solution file."
     )
     evaluate_parser.add_argument("solution_file")
-    evaluate_parser.add_argument(
-        "-p", "--puzzles", type=int, action="append", nargs="*"
-    )
     evaluate_parser.add_argument(
         "-f",
         "--fast",
@@ -485,9 +513,8 @@ def main():
         description="Find identical patterns in a sequence of moves.",
     )
     shortcut_parser.add_argument("initial_solution_file")
-    shortcut_parser.add_argument(
-        "-p", "--puzzle_ids", type=int, action="append", nargs="*"
-    )
+    shortcut_parser.add_argument("-p", "--puzzle_id", type=int)
+    shortcut_parser.add_argument("-t", "--puzzle_type")
     shortcut_parser.set_defaults(func=shortcut)
 
     wildcards_parser = subparsers.add_parser(
@@ -508,6 +535,25 @@ def main():
         nargs="+",
     )
     ensemble_parser.set_defaults(func=ensemble)
+
+    stitch_parser = subparsers.add_parser(
+        "stitch",
+        description="Stitch multiple solutions into a single best solution.",
+    )
+    stitch_parser.add_argument("-p", "--puzzle_id", type=int)
+    stitch_parser.add_argument("-t", "--puzzle_type")
+    stitch_parser.add_argument(
+        "solution_files_or_folders",
+        help="solution files or folders containing solution files (all csv files in a folder will be considered)",
+        nargs="+",
+    )
+    stitch_parser.add_argument(
+        "-d", "--debug", help="print debugging information", action="store_true"
+    )
+    stitch_parser.add_argument(
+        "-c", "--cleanup", help="clean-up solutions to reduce number of unique ones", action="store_true"
+    )
+    stitch_parser.set_defaults(func=stitch)
 
     plot_parser = subparsers.add_parser("plot")
     plot_parser.add_argument("solution_file")
@@ -549,6 +595,8 @@ def main():
 
     commute_parser = subparsers.add_parser("commute")
     commute_parser.add_argument("initial_solution_file")
+    commute_parser.add_argument("-p", "--puzzle_id", type=int)
+    commute_parser.add_argument("-t", "--puzzle_type")
     commute_parser.add_argument(
         "-d", "--debug", help="print debugging information", action="store_true"
     )

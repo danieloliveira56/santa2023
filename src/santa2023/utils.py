@@ -6,6 +6,7 @@ from typing import List
 PUZZLE_TYPES = [
     "all",
     "cube",
+    "wreath",
     "globe",
     "cube_2/2/2",
     "cube_3/3/3",
@@ -36,7 +37,6 @@ PUZZLE_TYPES = [
     "globe_8/25",
 ]
 
-CSV_BASE_PATH = Path(__file__).parent.parent.parent / "data"
 CACHE_BASE_PATH = Path(__file__).parent.parent.parent / ".cache"
 
 
@@ -194,9 +194,16 @@ def sorted_solution(puzzle, solution: List[str]):
     return new_solution
 
 
-def debug_list(l, start, end):
-    print(".".join(l[start:end]))
-    print(" ".join([f"{i:{len(str(l[i]))}d}" for i in range(start, end)]))
+def debug_list(l, row_width=50, start=None, end=None):
+    if start is None:
+        start = 0
+    if end is None:
+        end = len(l)
+    for i in range(start, end, row_width):
+        print(".".join(l[i : min(len(l), i + row_width)]))
+        print(" ".join([f"{j:{len(str(l[j]))}d}" for j in range(i, min(len(l), i + row_width))]))
+
+    # print(".".join(l[start:end]))
 
 
 def clean_solution(puzzle, solution):
@@ -206,6 +213,18 @@ def clean_solution(puzzle, solution):
         return clean_globe_solution(puzzle, solution)
     else:
         return sorted_solution(puzzle, solution)
+
+
+def print_globe(globe_type):
+    print(globe_type)
+    lat_size = int(globe_type.split("_")[1].split("/")[0])
+    lon_size = int(globe_type.split("_")[1].split("/")[1])
+    print(f"Lat: {lat_size}, Lon: {lon_size}")
+    w = 3
+    for i in range(lat_size + 1):
+        for j in range(2 * lon_size):
+            print(f"{j + 2 * i * lon_size:{w}d}", end=" ")
+        print()
 
 
 def clean_cube_solution(puzzle, solution):

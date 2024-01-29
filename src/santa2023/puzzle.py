@@ -6,22 +6,6 @@ import Levenshtein
 from santa2023.utils import get_inverse
 
 
-def read_puzzles(filename):
-    with open(filename, "r") as f:
-        lines = f.readlines()
-    return [Puzzle(*line.strip().split(",")) for line in lines[1:]]
-
-
-def read_puzzle_info(filename):
-    with open(filename, "r") as f:
-        lines = f.readlines()
-    type_moves = [line.strip().split(",", maxsplit=1) for line in lines[1:]]
-    return {
-        type: json.loads(moves.strip('"').replace("'", '"'))
-        for type, moves in type_moves
-    }
-
-
 class Permutation:
     def __init__(self, mapping, move_ids=[]):
         if isinstance(move_ids, str):
@@ -50,6 +34,19 @@ class Permutation:
             [self.mapping[i] for i in other.mapping],
             self.move_ids + other.move_ids,
         )
+
+    def is_Identity(self):
+        return self.mapping == tuple(range(len(self.mapping)))
+
+    def slow_commutes_with(self, other):
+        return self * other == other * self
+
+    def commutes_with(self, other):
+        for i in range(len(self.mapping)):
+            if self.mapping[other.mapping[i]] != other.mapping[self.mapping[i]]:
+                return False
+        return True
+
 
     def __invert__(self):
         inv_moves = []
@@ -141,6 +138,7 @@ class Puzzle:
         self._num_wildcards = int(num_wildcards)
         self._permutations = []
         self._taboo = None
+        self._allowed_moves = {}
 
     def initialize_move_list(self, allowed_moves):
         self._allowed_moves = {}

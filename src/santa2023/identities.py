@@ -3,13 +3,13 @@ import os
 import time
 from pathlib import Path
 from typing import Iterable
-
+import networkx as nx
 import sympy.combinatorics
 
-from santa2023.puzzle import (Permutation, WreathPuzzle, read_puzzle_info,
-                              read_puzzles)
-from santa2023.utils import (CSV_BASE_PATH, PUZZLE_TYPES, calculate_score,
-                             export_solution, get_inverse, read_solution)
+from santa2023.data import PUZZLE_INFO, PUZZLES
+from santa2023.puzzle import Permutation, WreathPuzzle
+from santa2023.utils import (PUZZLE_TYPES, calculate_score, export_solution,
+                             get_inverse, print_globe, read_solution, clean_solution, debug_list)
 
 
 def get_identities(puzzle_info, depth):
@@ -133,12 +133,8 @@ def identities(args):
 
 def slow_identities(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(puzzle_info[p.type])
 
-    permutation_map = get_identities(puzzle_info[args.puzzle_type], args.depth)
+    permutation_map = get_identities(PUZZLE_INFO[args.puzzle_type], args.depth)
     replacements = []
     for k, v in permutation_map.items():
         lengths = [len(p) for p in v]
@@ -152,7 +148,7 @@ def slow_identities(args):
 
     new_solution = []
     try:
-        for i, (permutation, puzzle) in enumerate(zip(solution, puzzles)):
+        for i, (permutation, puzzle) in enumerate(zip(solution, PUZZLES)):
             if puzzle.type != args.puzzle_type:
                 new_solution.append(permutation)
                 continue
@@ -180,16 +176,11 @@ def slow_identities(args):
         pass
     except Exception as e:
         raise e
-    export_solution(puzzles, new_solution)
+    export_solution(PUZZLES, new_solution)
 
 
 def wreath(args):
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(all_puzzle_info[p.type])
-
-    puzzle = puzzles[334]
+    puzzle = PUZZLES[334]
     wreath = WreathPuzzle(
         puzzle._id,
         puzzle.type,
@@ -212,12 +203,8 @@ def wreath(args):
 
 def test(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(all_puzzle_info[p.type])
 
-    puzzle = puzzles[args.puzzle_id]
+    puzzle = PUZZLES[args.puzzle_id]
     puzzle_type = puzzle.type
 
     print(puzzle._id)
@@ -225,50 +212,164 @@ def test(args):
 
     print(f"Puzzle type '{puzzle_type}' permutations:")
 
-    keys = list(all_puzzle_info[puzzle_type].keys())
+    permutations = {
+        k: sympy.combinatorics.Permutation(p)
+        for k, p in PUZZLE_INFO[puzzle_type].items()
+    }
 
-    permutations = [
-        sympy.combinatorics.Permutation(p)
-        for p in all_puzzle_info[puzzle_type].values()
-    ]
-
-    for i in range(len(permutations)):
-        for j in range(len(permutations)):
+    for i in permutations.keys():
+        for j in permutations.keys():
             if i == j:
                 continue
             if permutations[i].commutes_with(permutations[j]):
-                print(f"Permutation {keys[i]}, {keys[j]} are commutative")
+                print(f"Permutation {i}, {j} are commutative")
             pij = permutations[i] * permutations[j]
             if pij == ~pij:
-                print(
-                    f"Permutations {keys[i]}.{keys[j]}, -{keys[i]}.-{keys[j]} are inverses"
-                )
+                print(f"Permutations {i}.{j}, -{i}.-{j} are inverses")
         print()
 
-    for i in range(len(permutations)):
+    for i in permutations.keys():
         if permutations[i] == ~permutations[i]:
-            print(f"Permutation {keys[i]} is its own inverse")
+            print(f"Permutation {i} is its own inverse")
 
-    for i in range(len(permutations)):
-        for j in range(i + 1, len(permutations)):
+    for i in permutations.keys():
+        for j in permutations.keys():
+            if i == j:
+                continue
             if permutations[i] == ~permutations[j]:
-                print(f"Permutation {keys[i]},{keys[j]} are inverses")
+                print(f"Permutation {i},{j} are inverses")
 
     print(f"Puzzle type '{puzzle_type}' permutations:")
-    for i, p in enumerate(permutations):
+    for i, p in permutations.items():
         print(f"Permutation {i}:")
         print(p)
         print(p.array_form)
         print(p.cyclic_form)
         print()
 
-    G = sympy.combinatorics.PermutationGroup(permutations)
+    if puzzle_type.startswith("globe"):
+        print_globe(puzzle_type)
 
-    print(f"Group '{puzzle_type}' base:")
-    print(G.base)
-    print(f"Group '{puzzle_type}' generators:")
-    for p in G.strong_gens:
+    key_values = list(permutations.items())
+    for k, p in key_values:
+        permutations[f"-{k}"] = ~p
+
+    mismatches = [puzzle.count_mismatches]
+    for move in solution[puzzle._id]:
+        puzzle.permutate(move)
+        mismatches.append(puzzle.count_mismatches)
+
+    # for i in range(0, len(mismatches) - 1, 10):
+    #     print(".".join(solution[puzzle._id][i:i+10]))
+    #     print(" ".join([str(m) for m in mismatches[i:i+10]]))
+
+    # print("Solution:")
+    # curr_mismatches = puzzle.count_mismatches
+    # print(f"Initial mismatches: {curr_mismatches}")
+    # solution_blocks = []
+    # curr_block = []
+    # i = 0
+    # while i < len(solution[puzzle._id]):
+    #     while puzzle.count_mismatches >= curr_mismatches:
+    #         move = solution[puzzle._id][i]
+    #         curr_block.append(move)
+    #         puzzle.permutate(move)
+    #         i += 1
+    #     print(puzzle.count_mismatches, curr_block)
+    #     solution_blocks.append(curr_block)
+    #     curr_block = []
+    #     curr_mismatches = puzzle.count_mismatches
+
+    p = permutations[solution[puzzle._id][0]]
+    ct = sum([1 if i != j else 0 for i, j in enumerate(p.array_form)])
+    ct_series = [ct]
+    for i in range(1, len(solution[puzzle._id])):
+        p *= permutations[solution[puzzle._id][i]]
+        ct = sum([1 if i != j else 0 for i, j in enumerate(p.array_form)])
+        ct_series.append(ct)
+    print("ct_series:", ct_series)
+
+    min_ct = 100
+    n = len(solution[puzzle._id])
+    for i in range(n):
+        p = permutations[solution[puzzle._id][i]]
+        for j in range(i + 1, n):
+            p *= permutations[solution[puzzle._id][j]]
+            ct = sum([1 if i != j else 0 for i, j in enumerate(p.array_form)])
+            if ct <= 4:
+                print(f"{i}:{j}")
+                print(solution[puzzle._id][i : j + 1])
+                print(p)
+                print(p.array_form)
+            min_ct = min(min_ct, ct)
+        print(f"min_ct: {min_ct}", end="\r")
+    print()
+
+    # initial_state = puzzle._initial
+    # goal = puzzle._solution
+    # goal_map = {goal[i]: i for i in range(len(goal))}
+    # solution_permutation_array = [
+    #     goal_map[initial_state[i]] for i in range(len(initial_state))
+    # ]
+    # solution_permutation = sympy.combinatorics.Permutation(solution_permutation_array)
+    #
+    # print("Solution permutation:")
+    # print(solution_permutation)
+
+    for seq in [
+        "f4",
+        "r0",
+        "-r0.f4",
+        "-r0.f4.r0",
+        "-r0.-r0.f4.r0.r0",
+        "-r1.f4.r1",
+        "-r1.-r1.f4.r1.r1",
+        "-r2.f4.r2",
+        "-r1.f4.r1.-r2.f4.r2",
+        "-r1.-r1.f4.r1.r1.-r2.f4.r2",
+    ]:
+        print(seq)
+        moves = seq.split(".")
+        p = permutations[moves[0]]
+        for move_id in moves[1:]:
+            p *= permutations[move_id]
         print(p)
+
+    exit()
+
+    for seq in (
+        [f"r0.f{i}.-r0.-f{i}" for i in range(0, 8)]
+        + [f"f{i}.r0.-f{i}.-r0" for i in range(0, 8)]
+        + [f"f0.f{i}" for i in range(0, 8)]
+        + [
+            "f0.f2",
+            "f0.f2.r3",
+            "f0.f2.r3.f2",
+            "f0.f2.r3.f2.f0",
+            "f0.f2.r3.f2.f0.f0.f2.r3.f2.f0",
+            "f0.f2.r3.f2.f0.r0",
+            "f0.f2.r3.f0.f2",
+            "f0.f2.r3.f0.f2.-r3",
+        ]
+    ):
+        print(seq)
+        moves = seq.split(".")
+        p = permutations[moves[0]]
+        for move_id in moves[1:]:
+            p *= permutations[move_id]
+        print(p)
+    exit()
+    G = sympy.combinatorics.PermutationGroup(list(permutations.values()))
+    G.schreier_sims()
+    print(f"Group '{puzzle_type}' base (len(base)={len(G.base)}):")
+    print(G.base)
+    print(
+        f"Group '{puzzle_type}' generators (len(G.strong_gens)={len(G.strong_gens)}):"
+    )
+    for i, p in enumerate(G.strong_gens):
+        print(i, p)
+
+    print(G.stabilizer(0))
 
     print()
     p1 = permutations[0]
@@ -285,10 +386,6 @@ def test(args):
 
 def fast_identities(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(all_puzzle_info[p.type])
 
     puzzle_type = args.puzzle_type
     if puzzle_type == "all":
@@ -311,13 +408,13 @@ def fast_identities(args):
 
     new_solution = {}
     try:
-        for puzzle in puzzles:
+        for puzzle in PUZZLES:
             if puzzle.type not in puzzle_types:
                 new_solution[puzzle._id] = solution[puzzle._id]
                 continue
 
             permutations = [
-                Permutation(all_puzzle_info[puzzle.type][move_id], move_id)
+                Permutation(PUZZLE_INFO[puzzle.type][move_id], move_id)
                 for move_id in solution[puzzle._id]
             ]
             shortest_permutations = all_shortest_permutations[puzzle.type]
@@ -367,7 +464,7 @@ def fast_identities(args):
         pass
     except Exception as e:
         raise e
-    export_solution(puzzles, solution)
+    export_solution(PUZZLES, solution)
 
 
 def argmax(x: Iterable, key):
@@ -386,14 +483,10 @@ def argmax(x: Iterable, key):
 
 def simple_wildcards(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(puzzle_info[p.type])
     new_solution = []
 
     for id, sol in solution.items():
-        puzzle = puzzles[id]
+        puzzle = PUZZLES[id]
         if puzzle._num_wildcards == 0:
             new_solution.append(solution[puzzle._id])
             continue
@@ -405,7 +498,7 @@ def simple_wildcards(args):
                 print(f"Found wildcard {len(solution[puzzle._id])}->{move_idx+1}")
                 break
         new_solution.append(p.permutations)
-    export_solution(puzzles, new_solution)
+    export_solution(PUZZLES, new_solution)
 
 
 def search_branching_shortcuts(puzzle, permutation, pattern_map, depth=1):
@@ -437,47 +530,60 @@ def search_branching_shortcuts(puzzle, permutation, pattern_map, depth=1):
 
 def shortcut(args):
     solution = read_solution(filename=args.initial_solution_file)
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-    puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-    for p in puzzles:
-        p.initialize_move_list(puzzle_info[p.type])
-    new_solution = {}
-    if args.puzzle_ids is not None:
-        print(args.puzzle_ids)
-        puzzles = [puzzles[i] for i in args.puzzle_ids[0]]
 
-    old_value = 0
-    new_value = 0
-    for id, sol in solution.items():
+    if args.puzzle_id is None and args.puzzle_type is None:
+        print("Must specify either --puzzle_id/-p or --puzzle_type/-t")
+        print("Available puzzle types:")
+        for p in PUZZLE_TYPES:
+            print(f"  '{p}'")
+        return
+
+    if args.puzzle_type is not None:
+        if args.puzzle_type not in PUZZLE_TYPES:
+            print(f"Invalid puzzle type {args.puzzle_type}")
+            return
+
+    for puzzle in PUZZLES:
+        if args.puzzle_id is not None and puzzle._id != args.puzzle_id:
+            continue
+
+        if (
+            args.puzzle_type is not None
+            and args.puzzle_type != "all"
+            and not puzzle.type.startswith(args.puzzle_type)
+        ):
+            continue
         start = time.time()
-        puzzle = puzzles[id]
-        print(f"Searching shortcuts for {puzzle._id}", end="\r")
-        new_permutation = solution[puzzle._id].copy()
-        old_value += len(solution[puzzle._id])
+
+        print(
+            f"Searching shortcuts for puzzle {puzzle._id} ({puzzle.type})                               "
+        )
         has_shortcut = True
         while has_shortcut:
             has_shortcut = False
             p = puzzle.clone()
             pattern_map = {p.current_pattern_hash: [0]}
-            for move_idx, move_id in enumerate(new_permutation):
+            for move_idx, move_id in enumerate(solution[puzzle._id]):
                 p.permutate(move_id)
                 id = p.current_pattern_hash
                 pattern_map[id] = pattern_map.get(id, []) + [move_idx]
             candidate_shortcuts = [
                 positions for positions in pattern_map.values() if len(positions) > 1
             ]
-            if len(candidate_shortcuts) == 0 and len(new_permutation) < 4000:
+            if len(candidate_shortcuts) == 0 and len(solution[puzzle._id]) > 5000:
+                continue
+
+            if len(candidate_shortcuts) == 0:
                 shortcut_solution = search_branching_shortcuts(
-                    puzzle.clone(), new_permutation, pattern_map
+                    puzzle.clone(), solution[puzzle._id], pattern_map
                 )
                 if shortcut_solution:
                     print(
                         f"Searching branching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(shortcut_solution)}"
                     )
-                    new_permutation = shortcut_solution
+                    solution[puzzle._id] = shortcut_solution
+                    export_solution(PUZZLES, solution)
                     has_shortcut = True
-                continue
-            else:
                 continue
             has_shortcut = True
             _, longest_shortcut = argmax(
@@ -485,18 +591,14 @@ def shortcut(args):
             )
             idx1 = min(longest_shortcut)
             idx2 = max(longest_shortcut)
-            new_permutation = new_permutation[: idx1 + 1] + new_permutation[idx2 + 1 :]
+            new_permutation = solution[puzzle._id][: idx1 + 1] + solution[puzzle._id][idx2 + 1 :]
             print(
                 f"Searching shortcuts for {puzzle._id}: {len(solution[puzzle._id])}->{len(new_permutation)}"
             )
-        new_value += len(new_permutation)
-        new_solution[puzzle._id] = new_permutation
-        print(f"Shortcut {puzzle._id} time: {time.time()-start:0.2f}s")
+            solution[puzzle._id] = new_permutation
+            export_solution(PUZZLES, solution)
 
-    if new_value < old_value:
-        export_solution(puzzles, new_solution)
-    else:
-        print("No shortcuts found")
+        print(f"Shortcut {puzzle._id} time: {time.time()-start:0.2f}s")
 
 
 def is_solution_file(filepath):
@@ -509,8 +611,6 @@ def is_solution_file(filepath):
 
 
 def ensemble(args):
-    puzzles = read_puzzles(CSV_BASE_PATH / "puzzles.csv")
-
     all_files = []
     for filename in args.solution_files_or_folders:
         print(filename)
@@ -546,4 +646,164 @@ def ensemble(args):
             )[0]
         )
         print(len(ensemble_solution[-1]))
-    export_solution(puzzles, ensemble_solution)
+    export_solution(PUZZLES, ensemble_solution)
+
+
+def stitch(args):
+    all_files = []
+    for filename in args.solution_files_or_folders:
+        # Check if a folder was passed
+        if Path(filename).is_dir():
+            for file in os.listdir(filename):
+                all_files.append(Path(filename) / file)
+        else:
+            all_files.append(Path(filename))
+
+    solution_files = [filename for filename in all_files if is_solution_file(filename)]
+    solutions = []
+    for filename in solution_files:
+        solutions.append(read_solution(filename))
+
+    print(f"Loaded {len(solutions)} solutions:")
+    for i, solution in enumerate(solutions):
+        print(f"Solution {i} - {solution_files[i]}: {calculate_score(solution):0,}")
+    print(
+        "*Note: No validation is done on the solutions, only moves are counted. "
+        "Assure they are valid using `evaluate`"
+    )
+    stitched_solution = {}
+
+    for puzzle in PUZZLES:
+        skip = False
+        if args.puzzle_id is not None and puzzle._id != args.puzzle_id:
+            skip = True
+
+        if (
+            args.puzzle_type is not None
+            and args.puzzle_type != "all"
+            and not puzzle.type.startswith(args.puzzle_type)
+        ):
+            skip = True
+
+        all_solutions = []
+        for filename, sol in zip(solution_files, solutions):
+            if puzzle._id in sol:
+                all_solutions.append(sol[puzzle._id])
+        if len(all_solutions) == 0:
+            continue
+
+        all_solutions = sorted(all_solutions, key=lambda x: len(x))
+        if skip:
+            stitched_solution[puzzle._id] = all_solutions[0]
+            continue
+
+        unique_solutions = set()
+        for sol in all_solutions:
+            if args.cleanup:
+             unique_solutions.add(tuple(clean_solution(puzzle, sol)))
+            else:
+                unique_solutions.add(tuple(sol))
+
+        unique_solutions = list(sorted(unique_solutions, key=lambda x: len(x)))
+        stitched_solution[puzzle._id] = unique_solutions[0]
+
+        # if len(unique_solutions) > 5:
+        #     unique_solutions = unique_solutions[:3] + unique_solutions[-2:]
+        print(f"Stitching {puzzle.type} puzzle {puzzle._id} with {len(unique_solutions)} unique solutions", end="")
+
+        pattern_map = {}
+        for j, sol in enumerate(unique_solutions):
+            p = puzzle.clone()
+            for move_idx, move_id in enumerate(sol):
+                p.permutate(move_id)
+                id = p.current_pattern_hash
+                pattern_map[id] = pattern_map.get(id, []) + [(j, move_idx+1)]
+
+        candidate_shortcuts = [
+            positions for positions in pattern_map.values() if len(positions) > 1
+        ]
+        if len(candidate_shortcuts) == 0:
+            print(", no intersection patterns found")
+            continue
+
+        candidate_solutions = set(
+            pt[0] for c in candidate_shortcuts for pt in c
+        )
+        solution_pts = {
+            j: []
+            for j in candidate_solutions
+        }
+        for c in candidate_shortcuts:
+            for pt in c:
+                solution_pts[pt[0]].append(pt[1])
+        for j, idxs in solution_pts.items():
+            solution_pts[j] = sorted(idxs)
+
+        if args.debug:
+            print()
+            for j, idxs in solution_pts.items():
+                print(f"Solution {j} indices: {idxs}")
+
+        stitch_pts = [(-1, 0), (-1, 1)]
+        if args.debug:
+            print(f"Pattern map:")
+        for v in candidate_shortcuts:
+            if args.debug:
+                print(v)
+            for pt in v:
+                stitch_pts.append(pt)
+
+        pattern_graph = nx.DiGraph()
+        pattern_graph.add_nodes_from(stitch_pts)
+        for j, idxs in solution_pts.items():
+            pattern_graph.add_edge((-1, 0), (j, idxs[0]), weight=idxs[0])
+            for idx1, idx2 in zip(idxs[:-1], idxs[1:]):
+                pattern_graph.add_edge((j, idx1), (j, idx2), weight=idx2 - idx1)
+            if puzzle.clone().full_permutation(unique_solutions[j]).is_solved:
+                # Accept invalid solutions, but won't generate an invalid solution
+                pattern_graph.add_edge((j, idxs[-1]), (-1, 1), weight=len(unique_solutions[j])-idxs[-1])
+        for pts in candidate_shortcuts:
+            for pt1 in pts:
+                for pt2 in pts:
+                    if pt1 == pt2:
+                        continue
+                    pattern_graph.add_edge(
+                        pt1, pt2, weight=0
+                    )
+                    pattern_graph.add_edge(
+                        pt2, pt1, weight=0
+                    )
+
+        if args.debug:
+            print(f"Search graph number of nodes: {pattern_graph.number_of_nodes()}")
+            print(f"Search graph number of edges: {pattern_graph.number_of_edges()}")
+
+        shortest_path = nx.algorithms.shortest_paths.weighted.single_source_dijkstra(
+            pattern_graph, (-1, 0), (-1, 1)
+        )
+        previous_length = min(len(sol) for sol in unique_solutions)
+        new_length = shortest_path[0]
+        if args.debug:
+            print(f"Shortest path: {shortest_path}")
+        if new_length < previous_length:
+            sol, idx = shortest_path[1][1]
+            new_solution = unique_solutions[sol][:idx]
+            curr_sol = sol
+            curr_idx = idx
+            for sol, idx in shortest_path[1][2:-1]:
+                w = pattern_graph.get_edge_data((curr_sol, curr_idx), (sol, idx))["weight"]
+                if w > 0:
+                    # not a shortcut
+                    assert curr_sol == sol
+                    new_solution += unique_solutions[sol][curr_idx:idx]
+                curr_sol = sol
+                curr_idx = idx
+            new_solution += unique_solutions[sol][curr_idx:]
+            print(len(new_solution), new_length)
+            assert puzzle.clone().full_permutation(new_solution).is_solved
+            assert len(new_solution) == new_length
+            print(f"\t{previous_length}->{new_length} ****improved*****")
+            stitched_solution[i] = new_solution
+            export_solution(PUZZLES, stitched_solution)
+        else:
+            print(f", shortest path ({new_length}) >= current best ({previous_length}) (no improvement)")

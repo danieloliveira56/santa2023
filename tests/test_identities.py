@@ -1,14 +1,14 @@
 import pytest
 
 from santa2023.identities import replace_moves
-from santa2023.puzzle import Permutation, read_puzzle_info, Puzzle
-from santa2023.utils import CSV_BASE_PATH, get_inverse, sorted_solution
+from santa2023.puzzle import Permutation, Puzzle
+from santa2023.utils import get_inverse, sorted_solution
+from santa2023.data import PUZZLES, PUZZLE_INFO
 
-all_puzzle_info = read_puzzle_info(CSV_BASE_PATH / "puzzle_info.csv")
-for puzzle_info in all_puzzle_info.values():
-    move_ids = list(puzzle_info.keys())
-    for id in move_ids:
-        puzzle_info[f"-{id}"] = get_inverse(puzzle_info[id])
+for p_info in PUZZLE_INFO.values():
+    move_ids = list(p_info.keys())
+    for move_id in move_ids:
+        p_info[f"-{move_id}"] = get_inverse(p_info[move_id])
 
 
 @pytest.mark.parametrize(
@@ -338,6 +338,11 @@ def test_replace_moves(permutation, moves1, moves2, expected_permutation):
             ["r0"] * 50,
             "",
         ),
+        (
+            "cube_4/4/4",
+            "r0.-r0",
+            "r0.-f2.-d1.f2.d3.d3.-f2.d1.f2.-d3.f0.d1.f1.-d1.-f0.d1.-f1.-d3.-f3.d2.f3.-d1.-f3.-d2.f3.f1",
+        ),
     ],
 )
 def test_equivalency(puzzle_type, permutation1, permutation2):
@@ -345,7 +350,7 @@ def test_equivalency(puzzle_type, permutation1, permutation2):
         permutation1 = permutation1.split(".")
     if isinstance(permutation2, str):
         permutation2 = permutation2.split(".")
-    puzzle_info = all_puzzle_info[puzzle_type]
+    puzzle_info = PUZZLE_INFO[puzzle_type]
     n = len(list(puzzle_info.values())[0])
     result1 = list(range(n))
     for move_id in permutation1:
@@ -356,6 +361,8 @@ def test_equivalency(puzzle_type, permutation1, permutation2):
             continue
         result2 = [result2[i] for i in puzzle_info[move_id]]
 
+    print(result1)
+    print(result2)
     assert result1 == result2
 
 
@@ -421,7 +428,7 @@ def test_permutation_class():
     p4 = p3 * p2
     assert p4.mapping == (2, 3, 4, 0, 1)
 
-    puzzle_info = all_puzzle_info["cube_2/2/2"]
+    puzzle_info = PUZZLE_INFO["cube_2/2/2"]
     f0 = Permutation(puzzle_info["f0"], "f0")
     f0_ = Permutation(puzzle_info["-f0"], "-f0")
     f1 = Permutation(puzzle_info["f1"], "f1")
